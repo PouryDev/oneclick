@@ -1407,3 +1407,176 @@ WHERE
 
 -- name: DeletePipelineStep :exec
 DELETE FROM pipeline_steps WHERE id = $1;
+
+-- Event Log queries
+-- name: CreateEventLog :one
+INSERT INTO
+    event_logs (
+        org_id,
+        user_id,
+        action,
+        resource_type,
+        resource_id,
+        details
+    )
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id,
+    org_id,
+    user_id,
+    action,
+    resource_type,
+    resource_id,
+    details,
+    created_at;
+
+-- name: GetEventLogsByOrgID :many
+SELECT
+    id,
+    org_id,
+    user_id,
+    action,
+    resource_type,
+    resource_id,
+    details,
+    created_at
+FROM event_logs
+WHERE
+    org_id = $1
+ORDER BY created_at DESC
+LIMIT $2
+OFFSET
+    $3;
+
+-- name: GetEventLogsByOrgIDAndAction :many
+SELECT
+    id,
+    org_id,
+    user_id,
+    action,
+    resource_type,
+    resource_id,
+    details,
+    created_at
+FROM event_logs
+WHERE
+    org_id = $1
+    AND action = $2
+ORDER BY created_at DESC
+LIMIT $3
+OFFSET
+    $4;
+
+-- name: GetEventLogsByOrgIDAndResourceType :many
+SELECT
+    id,
+    org_id,
+    user_id,
+    action,
+    resource_type,
+    resource_id,
+    details,
+    created_at
+FROM event_logs
+WHERE
+    org_id = $1
+    AND resource_type = $2
+ORDER BY created_at DESC
+LIMIT $3
+OFFSET
+    $4;
+
+-- name: GetEventLogByID :one
+SELECT
+    id,
+    org_id,
+    user_id,
+    action,
+    resource_type,
+    resource_id,
+    details,
+    created_at
+FROM event_logs
+WHERE
+    id = $1;
+
+-- name: DeleteEventLog :exec
+DELETE FROM event_logs WHERE id = $1;
+
+-- Dashboard Counts queries
+-- name: GetDashboardCounts :one
+SELECT
+    org_id,
+    apps_count,
+    clusters_count,
+    running_pipelines,
+    updated_at
+FROM dashboard_counts
+WHERE
+    org_id = $1;
+
+-- name: UpdateDashboardCounts :one
+INSERT INTO
+    dashboard_counts (
+        org_id,
+        apps_count,
+        clusters_count,
+        running_pipelines,
+        updated_at
+    )
+VALUES ($1, $2, $3, $4, NOW()) ON CONFLICT (org_id) DO
+UPDATE
+SET
+    apps_count = EXCLUDED.apps_count,
+    clusters_count = EXCLUDED.clusters_count,
+    running_pipelines = EXCLUDED.running_pipelines,
+    updated_at = EXCLUDED.updated_at RETURNING org_id,
+    apps_count,
+    clusters_count,
+    running_pipelines,
+    updated_at;
+
+-- name: DeleteDashboardCounts :exec
+DELETE FROM dashboard_counts WHERE org_id = $1;
+
+-- Read Model Projects queries
+-- name: CreateReadModelProject :one
+INSERT INTO
+    read_model_projects (org_id, key, value)
+VALUES ($1, $2, $3) ON CONFLICT (org_id, key) DO
+UPDATE
+SET
+    value = EXCLUDED.value,
+    updated_at = NOW() RETURNING id,
+    org_id,
+    key,
+    value,
+    created_at,
+    updated_at;
+
+-- name: GetReadModelProject :one
+SELECT
+    id,
+    org_id,
+    key,
+    value,
+    created_at,
+    updated_at
+FROM read_model_projects
+WHERE
+    org_id = $1
+    AND key = $2;
+
+-- name: GetReadModelProjectsByOrgID :many
+SELECT
+    id,
+    org_id,
+    key,
+    value,
+    created_at,
+    updated_at
+FROM read_model_projects
+WHERE
+    org_id = $1
+ORDER BY updated_at DESC;
+
+-- name: DeleteReadModelProject :exec
+DELETE FROM read_model_projects WHERE org_id = $1 AND key = $2;

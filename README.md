@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, custom domain management with SSL certificate automation, real-time pod runtime management with terminal access, comprehensive monitoring with Prometheus integration, and CI/CD pipeline management with dry-run execution.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, custom domain management with SSL certificate automation, real-time pod runtime management with terminal access, comprehensive monitoring with Prometheus integration, CI/CD pipeline management with dry-run execution, and comprehensive event/audit logging with read model projections for dashboard analytics.
 
 ## Tech Stack
 
@@ -26,6 +26,7 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **Pod Management**: Real-time pod monitoring, logs streaming, and terminal access
 - **Monitoring**: Prometheus integration with metrics aggregation, caching, and rate limiting
 - **Pipeline Management**: CI/CD pipeline orchestration with dry-run mode, job queue integration, and step tracking
+- **Event Logging**: Comprehensive audit trail with event logging, dashboard analytics, and read model projections
 
 ## Features
 
@@ -180,6 +181,23 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - Background metrics collection and aggregation
 - Support for multiple time ranges (5m, 15m, 1h, 6h, 24h)
 - Top alerts filtering and limiting for application dashboards
+
+### 📋 Event Logging & Audit Trail
+
+- Comprehensive audit trail for all system operations
+- Event logging for applications, clusters, pipelines, releases, and user actions
+- Real-time event streaming with detailed context and metadata
+- Organization-scoped event access with role-based permissions
+- Event filtering by action type, resource type, and time range
+- Dashboard analytics with aggregated counts and summaries
+- Read model projections for performance-optimized queries
+- Background projector worker for maintaining denormalized data
+- Event details with JSON metadata for rich context information
+- User activity tracking with actor identification
+- Resource-specific event history with full audit trail
+- Event retention and cleanup policies for compliance
+- Integration with existing authentication and authorization systems
+- Real-time dashboard updates with automatic refresh capabilities
 
 ### 🔒 Security Features
 
@@ -1344,6 +1362,212 @@ Authorization: Bearer <jwt-token>
   }
 ]
 ```
+
+### Event Logging & Audit Trail
+
+#### Get Organization Events
+
+```http
+GET /orgs/{orgId}/events?limit=50&offset=0&action=app_created&resource_type=app
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "events": [
+    {
+      "id": "uuid",
+      "org_id": "uuid",
+      "user_id": "uuid",
+      "action": "app_created",
+      "resource_type": "app",
+      "resource_id": "uuid",
+      "details": {
+        "name": "my-app",
+        "cluster_id": "uuid",
+        "repository_id": "uuid"
+      },
+      "created_at": "2024-01-01T12:00:00Z"
+    }
+  ],
+  "limit": 50,
+  "offset": 0,
+  "count": 1
+}
+```
+
+#### Get Event by ID
+
+```http
+GET /events/{eventId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "id": "uuid",
+  "org_id": "uuid",
+  "user_id": "uuid",
+  "action": "pipeline_started",
+  "resource_type": "pipeline",
+  "resource_id": "uuid",
+  "details": {
+    "app_name": "my-app",
+    "branch": "main",
+    "commit_sha": "abc123"
+  },
+  "created_at": "2024-01-01T12:00:00Z"
+}
+```
+
+#### Get Dashboard Counts
+
+```http
+GET /orgs/{orgId}/dashboard
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "org_id": "uuid",
+  "apps_count": 15,
+  "clusters_count": 3,
+  "running_pipelines": 2,
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+#### Refresh Dashboard Counts
+
+```http
+POST /orgs/{orgId}/dashboard/refresh
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "org_id": "uuid",
+  "apps_count": 15,
+  "clusters_count": 3,
+  "running_pipelines": 2,
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+#### Get Read Model Projects
+
+```http
+GET /orgs/{orgId}/readmodel
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "projects": [
+    {
+      "id": "uuid",
+      "org_id": "uuid",
+      "key": "recent_failed_pipelines",
+      "value": {
+        "pipelines": [
+          {
+            "id": "uuid",
+            "app_id": "uuid",
+            "app_name": "my-app",
+            "commit_sha": "abc123",
+            "finished_at": "2024-01-01T12:00:00Z"
+          }
+        ],
+        "count": 1,
+        "updated_at": "2024-01-01T12:00:00Z"
+      },
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-01T12:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+#### Get Read Model Project by Key
+
+```http
+GET /orgs/{orgId}/readmodel/{key}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "id": "uuid",
+  "org_id": "uuid",
+  "key": "top_apps_by_deployments",
+  "value": {
+    "apps": [
+      {
+        "id": "uuid",
+        "name": "my-app",
+        "deployment_count": 25
+      }
+    ],
+    "updated_at": "2024-01-01T12:00:00Z"
+  },
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+#### Create Read Model Project
+
+```http
+POST /orgs/{orgId}/readmodel
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "key": "custom_analytics",
+  "value": {
+    "metric": "custom_value",
+    "data": "analytics_data"
+  }
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "org_id": "uuid",
+  "key": "custom_analytics",
+  "value": {
+    "metric": "custom_value",
+    "data": "analytics_data"
+  },
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+#### Delete Read Model Project
+
+```http
+DELETE /orgs/{orgId}/readmodel/{key}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (204):** No Content
 
 ## Development
 

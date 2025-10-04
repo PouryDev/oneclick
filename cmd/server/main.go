@@ -68,6 +68,11 @@ func main() {
 	pipelineRepo := repo.NewPipelineRepository(sqlxDB)
 	pipelineStepRepo := repo.NewPipelineStepRepository(sqlxDB)
 
+	// Initialize event repositories
+	eventRepo := repo.NewEventRepository(db)
+	dashboardCountsRepo := repo.NewDashboardCountsRepository(db)
+	readModelRepo := repo.NewReadModelProjectRepository(db)
+
 	// Initialize crypto
 	cryptoService, err := crypto.NewCrypto()
 	if err != nil {
@@ -92,6 +97,11 @@ func main() {
 	// Initialize monitoring service with nil Prometheus client (will be created per request)
 	monitoringService := services.NewMonitoringService(appRepo, clusterRepo, orgRepo, cryptoService, nil, logger)
 
+	// Initialize event services
+	eventLoggerService := services.NewEventLoggerService(eventRepo, orgRepo, logger)
+	dashboardService := services.NewDashboardService(dashboardCountsRepo, appRepo, clusterRepo, pipelineRepo, orgRepo, logger)
+	readModelService := services.NewReadModelService(readModelRepo, orgRepo, logger)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	orgHandler := handlers.NewOrganizationHandler(orgService)
@@ -106,6 +116,9 @@ func main() {
 	pipelineHandler := handlers.NewPipelineHandler(pipelineService, logger)
 	podHandler := handlers.NewPodHandler(podService, logger)
 	monitoringHandler := handlers.NewMonitoringHandler(monitoringService, logger)
+
+	// Initialize event handler
+	eventHandler := handlers.NewEventHandler(eventLoggerService, dashboardService, readModelService)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -304,6 +317,35 @@ func main() {
 		appsMonitoring.GET("/:appId/monitoring", monitoringHandler.GetApplicationMetrics)
 	}
 
+	// Event and audit routes (require authentication)
+	events := router.Group("/events")
+	events.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		events.GET("/:eventId", eventHandler.GetEventByID)
+	}
+
+	// Organization-specific event routes (require authentication and organization access)
+	orgEvents := router.Group("/orgs")
+	orgEvents.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		orgSpecificEvents := orgEvents.Group("/:orgId")
+		orgSpecificEvents.Use(middleware.OrganizationAccessMiddleware(orgRepo))
+		{
+			// Event logs
+			orgSpecificEvents.GET("/events", eventHandler.GetEventsByOrgID)
+
+			// Dashboard
+			orgSpecificEvents.GET("/dashboard", eventHandler.GetDashboardCounts)
+			orgSpecificEvents.POST("/dashboard/refresh", eventHandler.UpdateDashboardCounts)
+
+			// Read model projects
+			orgSpecificEvents.GET("/readmodel", eventHandler.GetReadModelProjects)
+			orgSpecificEvents.POST("/readmodel", eventHandler.CreateReadModelProject)
+			orgSpecificEvents.GET("/readmodel/:key", eventHandler.GetReadModelProject)
+			orgSpecificEvents.DELETE("/readmodel/:key", eventHandler.DeleteReadModelProject)
+		}
+	}
+
 	// Public webhook routes (no authentication required)
 	webhooks := router.Group("/hooks")
 	{
@@ -326,11 +368,30 @@ func main() {
 		true, // dryRun mode for MVP
 	)
 
+	// Initialize event projector worker
+	eventProjectorWorker := worker.NewEventProjectorWorker(
+		db,
+		eventRepo,
+		dashboardCountsRepo,
+		readModelRepo,
+		appRepo,
+		clusterRepo,
+		pipelineRepo,
+		logger,
+	)
+
 	// Start background workers
 	go func() {
 		ctx := context.Background()
 		if err := gitRunnerWorker.Start(ctx); err != nil {
 			logger.Error("Git runner worker failed", zap.Error(err))
+		}
+	}()
+
+	go func() {
+		ctx := context.Background()
+		if err := eventProjectorWorker.Start(ctx); err != nil {
+			logger.Error("Event projector worker failed", zap.Error(err))
 		}
 	}()
 
