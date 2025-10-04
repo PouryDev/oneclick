@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication and user management.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, and Kubernetes cluster management.
 
 ## Tech Stack
 
@@ -13,6 +13,43 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **Authentication**: JWT (github.com/golang-jwt/jwt/v5)
 - **Testing**: Testify
 - **Architecture**: Clean Architecture
+- **Kubernetes**: client-go for cluster management
+- **Encryption**: AES-GCM for kubeconfig encryption
+
+## Features
+
+### 🔐 Authentication & User Management
+
+- User registration and login with JWT tokens
+- Password hashing with bcrypt
+- User profile management
+- Secure authentication middleware
+
+### 🏢 Organization Management
+
+- Create and manage organizations
+- Role-based access control (Owner, Admin, Member)
+- Add/remove organization members
+- Update member roles
+- Organization-specific resource access
+
+### ☸️ Kubernetes Cluster Management
+
+- Create new clusters with provider/region information
+- Import existing clusters via kubeconfig upload
+- Real-time cluster health monitoring
+- Node information and resource usage
+- Encrypted kubeconfig storage
+- Cluster status tracking (provisioning/active/error/deleting)
+- Kubernetes API integration using client-go
+
+### 🔒 Security Features
+
+- AES-GCM encryption for sensitive data
+- JWT-based authentication
+- Role-based access control
+- Input validation and sanitization
+- Secure file upload handling
 
 ## Project Structure
 
@@ -25,6 +62,7 @@ oneclick/
 │   │   ├── handlers/     # HTTP handlers
 │   │   └── middleware/   # HTTP middleware
 │   ├── app/
+│   │   ├── crypto/       # Encryption utilities
 │   │   └── services/     # Business logic services
 │   ├── config/           # Configuration management
 │   ├── domain/           # Domain models and interfaces
@@ -348,6 +386,157 @@ Authorization: Bearer <jwt-token>
 
 **Response (204):** No content
 
+### Clusters
+
+#### Create Cluster
+
+```http
+POST /orgs/{orgId}/clusters
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "name": "My Cluster",
+  "provider": "aws",
+  "region": "us-west-2",
+  "kubeconfig": "base64-encoded-kubeconfig" // optional
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "name": "My Cluster",
+  "provider": "aws",
+  "region": "us-west-2",
+  "node_count": 0,
+  "status": "provisioning",
+  "kube_version": null,
+  "last_health_check": null,
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Import Cluster
+
+```http
+POST /orgs/{orgId}/clusters/import
+Authorization: Bearer <jwt-token>
+Content-Type: multipart/form-data
+
+name: "Imported Cluster"
+kubeconfig: <file>
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "name": "Imported Cluster",
+  "provider": "imported",
+  "region": "unknown",
+  "node_count": 0,
+  "status": "active",
+  "kube_version": null,
+  "last_health_check": null,
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Get Organization Clusters
+
+```http
+GET /orgs/{orgId}/clusters
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "name": "My Cluster",
+    "provider": "aws",
+    "region": "us-west-2",
+    "node_count": 3,
+    "status": "active",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+#### Get Cluster Details
+
+```http
+GET /clusters/{clusterId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "id": "uuid",
+  "name": "My Cluster",
+  "provider": "aws",
+  "region": "us-west-2",
+  "node_count": 3,
+  "status": "active",
+  "kube_version": "v1.25.0",
+  "last_health_check": "2024-01-01T00:00:00Z",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z",
+  "has_kubeconfig": true
+}
+```
+
+#### Get Cluster Health
+
+```http
+GET /clusters/{clusterId}/status
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "status": "active",
+  "kube_version": "v1.25.0",
+  "nodes": [
+    {
+      "name": "node-1",
+      "status": "Ready",
+      "cpu": "2",
+      "memory": "4Gi"
+    },
+    {
+      "name": "node-2",
+      "status": "Ready",
+      "cpu": "2",
+      "memory": "4Gi"
+    }
+  ],
+  "last_check": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Delete Cluster
+
+```http
+DELETE /clusters/{clusterId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (204):** No content
+
 ## Development
 
 ### Available Make Commands
@@ -456,6 +645,27 @@ curl -X GET http://localhost:8080/auth/me \
   -H "Authorization: Bearer TOKEN"
 ```
 
+### Using the Test Scripts
+
+#### Test Organizations API:
+
+```bash
+./test_orgs_api.sh
+```
+
+#### Test Clusters API:
+
+```bash
+./test_clusters_api.sh
+```
+
+These scripts will:
+
+1. Register a test user
+2. Create an organization
+3. Test all organization/cluster operations
+4. Clean up test data
+
 ## Configuration
 
 The application uses environment variables for configuration. See `.env.example` for all available options:
@@ -474,6 +684,9 @@ The application uses environment variables for configuration. See `.env.example`
 - Implement rate limiting for production use
 - Consider implementing refresh tokens for better security
 - Validate and sanitize all inputs
+- Kubeconfigs are encrypted using AES-GCM before storage
+- Ensure `ONECLICK_MASTER_KEY` is exactly 32 bytes for proper encryption
+- Cluster health checks validate kubeconfig connectivity before storing
 
 ## Contributing
 

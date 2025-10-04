@@ -128,3 +128,139 @@ SELECT
 FROM users
 WHERE
     email = $1;
+
+-- Cluster queries
+-- name: CreateCluster :one
+INSERT INTO
+    clusters (
+        org_id,
+        name,
+        provider,
+        region,
+        kubeconfig_encrypted,
+        status
+    )
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id,
+    org_id,
+    name,
+    provider,
+    region,
+    node_count,
+    status,
+    kube_version,
+    last_health_check,
+    created_at,
+    updated_at;
+
+-- name: GetClusterByID :one
+SELECT
+    id,
+    org_id,
+    name,
+    provider,
+    region,
+    kubeconfig_encrypted,
+    node_count,
+    status,
+    kube_version,
+    last_health_check,
+    created_at,
+    updated_at
+FROM clusters
+WHERE
+    id = $1;
+
+-- name: GetClustersByOrgID :many
+SELECT
+    id,
+    org_id,
+    name,
+    provider,
+    region,
+    node_count,
+    status,
+    kube_version,
+    last_health_check,
+    created_at,
+    updated_at
+FROM clusters
+WHERE
+    org_id = $1
+ORDER BY created_at DESC;
+
+-- name: UpdateClusterStatus :one
+UPDATE clusters
+SET
+    status = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    name,
+    provider,
+    region,
+    node_count,
+    status,
+    kube_version,
+    last_health_check,
+    created_at,
+    updated_at;
+
+-- name: UpdateClusterKubeconfig :one
+UPDATE clusters
+SET
+    kubeconfig_encrypted = $2,
+    status = $3,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    name,
+    provider,
+    region,
+    node_count,
+    status,
+    kube_version,
+    last_health_check,
+    created_at,
+    updated_at;
+
+-- name: UpdateClusterHealth :one
+UPDATE clusters
+SET
+    kube_version = $2,
+    last_health_check = NOW(),
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    name,
+    provider,
+    region,
+    node_count,
+    status,
+    kube_version,
+    last_health_check,
+    created_at,
+    updated_at;
+
+-- name: UpdateClusterNodeCount :one
+UPDATE clusters
+SET
+    node_count = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    name,
+    provider,
+    region,
+    node_count,
+    status,
+    kube_version,
+    last_health_check,
+    created_at,
+    updated_at;
+
+-- name: DeleteCluster :exec
+DELETE FROM clusters WHERE id = $1;

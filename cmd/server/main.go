@@ -12,6 +12,7 @@ import (
 
 	"github.com/PouryDev/oneclick/internal/api/handlers"
 	"github.com/PouryDev/oneclick/internal/api/middleware"
+	"github.com/PouryDev/oneclick/internal/app/crypto"
 	"github.com/PouryDev/oneclick/internal/app/services"
 	"github.com/PouryDev/oneclick/internal/config"
 	"github.com/PouryDev/oneclick/internal/repo"
@@ -50,14 +51,23 @@ func main() {
 	// Initialize repositories
 	userRepo := repo.NewUserRepository(db)
 	orgRepo := repo.NewOrganizationRepository(db)
+	clusterRepo := repo.NewClusterRepository(db)
+
+	// Initialize crypto
+	cryptoService, err := crypto.NewCrypto()
+	if err != nil {
+		logger.Fatal("Failed to initialize crypto service", zap.Error(err))
+	}
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg.JWT.Secret)
 	orgService := services.NewOrganizationService(orgRepo, userRepo)
+	clusterService := services.NewClusterService(clusterRepo, orgRepo, cryptoService)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	orgHandler := handlers.NewOrganizationHandler(orgService)
+	clusterHandler := handlers.NewClusterHandler(clusterService)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -103,7 +113,25 @@ func main() {
 				members.PATCH("/:userId", orgHandler.UpdateMemberRole)
 				members.DELETE("/:userId", orgHandler.RemoveMember)
 			}
+
+			// Cluster management routes
+			clusters := orgSpecific.Group("/clusters")
+			clusters.Use(middleware.RequireMemberMiddleware())
+			{
+				clusters.POST("", clusterHandler.CreateCluster)
+				clusters.GET("", clusterHandler.GetClustersByOrg)
+				clusters.POST("/import", clusterHandler.ImportCluster)
+			}
 		}
+	}
+
+	// Global cluster routes (require authentication)
+	clusters := router.Group("/clusters")
+	clusters.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		clusters.GET("/:clusterId", clusterHandler.GetCluster)
+		clusters.GET("/:clusterId/status", clusterHandler.GetClusterHealth)
+		clusters.DELETE("/:clusterId", middleware.RequireAdminOrOwnerMiddleware(), clusterHandler.DeleteCluster)
 	}
 
 	// Start server
