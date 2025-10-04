@@ -1,0 +1,183 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: oneclick-postgres
+    environment:
+      POSTGRES_DB: oneclick
+      POSTGRES_USER: oneclick
+      POSTGRES_PASSWORD: oneclick123
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - oneclick-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oneclick -d oneclick"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and job queues
+  redis:
+    image: redis:7-alpine
+    container_name: oneclick-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - oneclick-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # OneClick Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oneclick-backend
+    environment:
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: oneclick
+      DB_USER: oneclick
+      DB_PASSWORD: oneclick123
+      DB_SSLMODE: disable
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+
+      # Server
+      SERVER_PORT: 8080
+      SERVER_HOST: 0.0.0.0
+
+      # JWT
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_EXPIRES_IN: 24h
+
+      # Encryption
+      ONECLICK_MASTER_KEY: your-master-key-for-encryption-change-in-production
+
+      # Logging
+      LOG_LEVEL: debug
+
+      # Development
+      ENV: development
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./migrations:/app/migrations:ro
+      - ./docs:/app/docs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - oneclick-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Database Migration Service
+  migrate:
+    image: migrate/migrate:v4.16.2
+    container_name: oneclick-migrate
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: oneclick
+      POSTGRES_USER: oneclick
+      POSTGRES_PASSWORD: oneclick123
+      POSTGRES_SSLMODE: disable
+    volumes:
+      - ./migrations:/migrations:ro
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...'
+        until pg_isready -h postgres -p 5432 -U oneclick; do
+          echo 'Database is unavailable - sleeping'
+          sleep 2
+        done
+        echo 'Database is ready - running migrations'
+        migrate -path /migrations -database 'postgres://oneclick:oneclick123@postgres:5432/oneclick?sslmode=disable' up
+        echo 'Migrations completed'
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - oneclick-network
+
+  # Prometheus for monitoring (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: oneclick-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    networks:
+      - oneclick-network
+    profiles:
+      - monitoring
+
+  # Grafana for monitoring dashboards (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: oneclick-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - oneclick-network
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  oneclick-network:
+    driver: bridge

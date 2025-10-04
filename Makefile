@@ -1,128 +1,145 @@
-.PHONY: build run test clean migrate-up migrate-down migrate-create docker-build docker-run
+# OneClick Makefile
 
-# Variables
-BINARY_NAME=oneclick
-BUILD_DIR=build
-MIGRATIONS_DIR=migrations
-DATABASE_URL?=postgres://user:password@localhost:5432/oneclick?sslmode=disable
+.PHONY: help dev-start dev-stop full-start full-stop monitoring logs status clean build test lint
 
-# Build the application
-build:
-	@echo "Building $(BINARY_NAME)..."
-	@mkdir -p $(BUILD_DIR)
-	@go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/server
-	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
+# Default target
+help: ## Show this help message
+	@echo "OneClick Development Commands"
+	@echo "============================="
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-# Run the application
-run:
-	@echo "Running $(BINARY_NAME)..."
-	@go run ./cmd/server
+# Development infrastructure
+dev-start: ## Start development infrastructure (PostgreSQL + Redis)
+	@echo "Starting development infrastructure..."
+	@if [ ! -f .env ]; then cp env.dev.example .env; echo "Created .env file from template"; fi
+	docker-compose -f docker-compose.dev.yml up -d
+	@echo "Waiting for services to be ready..."
+	@sleep 10
+	docker-compose -f docker-compose.dev.yml up migrate
+	@echo "Development infrastructure is ready!"
+	@echo "PostgreSQL: localhost:5433"
+	@echo "Redis: localhost:6380"
 
-# Run tests
-test:
-	@echo "Running tests..."
-	@go test -v ./...
+dev-stop: ## Stop development infrastructure
+	docker-compose -f docker-compose.dev.yml down
 
-# Run tests with coverage
-test-coverage:
-	@echo "Running tests with coverage..."
-	@go test -v -coverprofile=coverage.out ./...
-	@go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+# Full stack
+full-start: ## Start full stack (infrastructure + backend)
+	@echo "Starting full OneClick stack..."
+	@if [ ! -f .env ]; then cp env.dev.example .env; echo "Created .env file from template"; fi
+	docker-compose up -d
+	@echo "Full OneClick stack is ready!"
+	@echo "Backend API: http://localhost:8080"
 
-# Clean build artifacts
-clean:
-	@echo "Cleaning build artifacts..."
-	@rm -rf $(BUILD_DIR)
-	@rm -f coverage.out coverage.html
-	@echo "Clean complete"
+full-stop: ## Stop full stack
+	docker-compose down
 
-# Install dependencies
-deps:
-	@echo "Installing dependencies..."
-	@go mod download
-	@go mod tidy
+# Monitoring
+monitoring: ## Start with monitoring (Prometheus + Grafana)
+	@echo "Starting OneClick with monitoring..."
+	@if [ ! -f .env ]; then cp env.dev.example .env; echo "Created .env file from template"; fi
+	docker-compose --profile monitoring up -d
+	@echo "OneClick with monitoring is ready!"
+	@echo "Backend API: http://localhost:8080"
+	@echo "Prometheus: http://localhost:9090"
+	@echo "Grafana: http://localhost:3000 (admin/admin123)"
 
-# Install migrate CLI (if not already installed)
-install-migrate:
-	@echo "Installing migrate CLI..."
-	@go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+# Logs
+logs: ## Show logs for all services
+	docker-compose logs -f
 
-# Run database migrations up
-migrate-up:
-	@echo "Running database migrations up..."
-	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" up
+logs-backend: ## Show backend logs
+	docker-compose logs -f backend
 
-# Run database migrations down
-migrate-down:
-	@echo "Running database migrations down..."
-	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" down
+logs-postgres: ## Show PostgreSQL logs
+	docker-compose logs -f postgres
 
-# Create a new migration
-migrate-create:
-	@echo "Creating new migration..."
+logs-redis: ## Show Redis logs
+	docker-compose logs -f redis
+
+# Status and cleanup
+status: ## Show status of all services
+	@echo "OneClick Docker Services Status:"
+	@docker-compose ps
+	@echo ""
+	@docker-compose -f docker-compose.dev.yml ps
+
+clean: ## Clean up Docker resources
+	@echo "Cleaning up OneClick Docker resources..."
+	docker-compose down --remove-orphans
+	docker-compose -f docker-compose.dev.yml down --remove-orphans
+	@echo "Cleanup completed!"
+
+clean-volumes: ## Clean up Docker resources and volumes (WARNING: Deletes all data)
+	@echo "WARNING: This will delete all data volumes!"
+	@read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ]
+	docker-compose down --remove-orphans -v
+	docker-compose -f docker-compose.dev.yml down --remove-orphans -v
+	docker volume prune -f
+	@echo "All data volumes have been deleted!"
+
+# Development commands
+build: ## Build the Go application
+	go build -o bin/oneclick cmd/server/main.go
+
+run: ## Run the Go application locally
+	go run cmd/server/main.go
+
+test: ## Run tests
+	go test ./...
+
+test-coverage: ## Run tests with coverage
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+
+lint: ## Run linter
+	golangci-lint run
+
+lint-fix: ## Run linter with auto-fix
+	golangci-lint run --fix
+
+# Database commands
+migrate-up: ## Run database migrations
+	migrate -path migrations -database "postgres://oneclick_dev:oneclick_dev123@localhost:5433/oneclick_dev?sslmode=disable" up
+
+migrate-down: ## Rollback database migrations
+	migrate -path migrations -database "postgres://oneclick_dev:oneclick_dev123@localhost:5433/oneclick_dev?sslmode=disable" down
+
+migrate-create: ## Create a new migration file
 	@read -p "Enter migration name: " name; \
-	migrate create -ext sql -dir $(MIGRATIONS_DIR) $$name
+	migrate create -ext sql -dir migrations $$name
 
-# Check migration status
-migrate-status:
-	@echo "Checking migration status..."
-	@migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" version
+# Frontend commands
+frontend-dev: ## Start frontend development server
+	cd oneclick-web && pnpm dev
 
-# Force migration version (use with caution)
-migrate-force:
-	@echo "Forcing migration version..."
-	@read -p "Enter version number: " version; \
-	migrate -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" force $$version
+frontend-build: ## Build frontend for production
+	cd oneclick-web && pnpm build
+
+frontend-install: ## Install frontend dependencies
+	cd oneclick-web && pnpm install
 
 # Docker commands
-docker-build:
-	@echo "Building Docker image..."
-	@docker build -t $(BINARY_NAME) .
+docker-build: ## Build Docker image
+	docker build -t oneclick:latest .
 
-docker-run:
-	@echo "Running Docker container..."
-	@docker run --env-file .env -p 8080:8080 $(BINARY_NAME)
+docker-run: ## Run Docker container
+	docker run -p 8080:8080 --env-file .env oneclick:latest
 
-# Development setup
-dev-setup: deps install-migrate
-	@echo "Development setup complete"
-	@echo "Don't forget to:"
-	@echo "1. Set up your PostgreSQL database"
-	@echo "2. Copy .env.example to .env and configure it"
-	@echo "3. Run 'make migrate-up' to apply migrations"
+# Utility commands
+env-setup: ## Setup environment file
+	@if [ ! -f .env ]; then \
+		cp env.dev.example .env; \
+		echo "Created .env file from template"; \
+		echo "Please review and update .env file with your configuration"; \
+	else \
+		echo ".env file already exists"; \
+	fi
 
-# Format code
-fmt:
-	@echo "Formatting code..."
-	@go fmt ./...
-
-# Lint code
-lint:
-	@echo "Linting code..."
-	@golangci-lint run
-
-# Install linting tools
-install-lint:
-	@echo "Installing linting tools..."
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
-# Help
-help:
-	@echo "Available targets:"
-	@echo "  build          - Build the application"
-	@echo "  run            - Run the application"
-	@echo "  test           - Run tests"
-	@echo "  test-coverage  - Run tests with coverage report"
-	@echo "  clean          - Clean build artifacts"
-	@echo "  deps           - Install dependencies"
-	@echo "  migrate-up     - Run database migrations up"
-	@echo "  migrate-down   - Run database migrations down"
-	@echo "  migrate-create - Create a new migration"
-	@echo "  migrate-status - Check migration status"
-	@echo "  docker-build   - Build Docker image"
-	@echo "  docker-run     - Run Docker container"
-	@echo "  dev-setup      - Setup development environment"
-	@echo "  fmt            - Format code"
-	@echo "  lint           - Lint code"
-	@echo "  help           - Show this help message"
+check-deps: ## Check if all dependencies are installed
+	@echo "Checking dependencies..."
+	@command -v docker >/dev/null 2>&1 || { echo "Docker is not installed"; exit 1; }
+	@command -v docker-compose >/dev/null 2>&1 || { echo "Docker Compose is not installed"; exit 1; }
+	@command -v go >/dev/null 2>&1 || { echo "Go is not installed"; exit 1; }
+	@command -v migrate >/dev/null 2>&1 || { echo "Migrate is not installed"; exit 1; }
+	@echo "All dependencies are installed!"

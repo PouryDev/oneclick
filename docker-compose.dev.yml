@@ -1,0 +1,79 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: oneclick-postgres-dev
+    environment:
+      POSTGRES_DB: oneclick_dev
+      POSTGRES_USER: oneclick_dev
+      POSTGRES_PASSWORD: oneclick_dev123
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5433:5432" # Different port to avoid conflicts
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - oneclick-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oneclick_dev -d oneclick_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and job queues
+  redis:
+    image: redis:7-alpine
+    container_name: oneclick-redis-dev
+    ports:
+      - "6380:6379" # Different port to avoid conflicts
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - oneclick-dev-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Database Migration Service
+  migrate:
+    image: migrate/migrate:v4.16.2
+    container_name: oneclick-migrate-dev
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: oneclick_dev
+      POSTGRES_USER: oneclick_dev
+      POSTGRES_PASSWORD: oneclick_dev123
+      POSTGRES_SSLMODE: disable
+    volumes:
+      - ./migrations:/migrations:ro
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...'
+        until pg_isready -h postgres -p 5432 -U oneclick_dev; do
+          echo 'Database is unavailable - sleeping'
+          sleep 2
+        done
+        echo 'Database is ready - running migrations'
+        migrate -path /migrations -database 'postgres://oneclick_dev:oneclick_dev123@postgres:5432/oneclick_dev?sslmode=disable' up
+        echo 'Migrations completed'
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - oneclick-dev-network
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+networks:
+  oneclick-dev-network:
+    driver: bridge

@@ -6,4 +6,5 @@
 .env
 vendor
 
-
+oneclick-web
+oneclick-web/*

@@ -1621,9 +1621,201 @@ make migrate-down
 make migrate-status
 ```
 
-## Docker
+## Docker Development
 
-### Build and Run with Docker
+OneClick provides comprehensive Docker support for development and production environments.
+
+### 🐳 Docker Compose Setup
+
+#### Quick Start with Docker Compose
+
+```bash
+# Start development infrastructure (PostgreSQL + Redis)
+make dev-start
+
+# Start full stack (infrastructure + backend)
+make full-start
+
+# Start with monitoring (Prometheus + Grafana)
+make monitoring
+
+# Stop services
+make dev-stop
+make full-stop
+```
+
+#### Development Infrastructure Only
+
+For local development with Go running natively:
+
+```bash
+# Start only infrastructure services
+docker-compose -f docker-compose.dev.yml up -d
+
+# Run migrations
+docker-compose -f docker-compose.dev.yml up migrate
+
+# Stop infrastructure
+docker-compose -f docker-compose.dev.yml down
+```
+
+**Services:**
+
+- PostgreSQL: `localhost:5433` (dev) / `localhost:5432` (full)
+- Redis: `localhost:6380` (dev) / `localhost:6379` (full)
+
+#### Full Stack Development
+
+```bash
+# Start all services including backend
+docker-compose up -d
+
+# View logs
+docker-compose logs -f backend
+
+# Stop all services
+docker-compose down
+```
+
+**Services:**
+
+- Backend API: `http://localhost:8080`
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+
+#### Monitoring Stack
+
+```bash
+# Start with monitoring services
+docker-compose --profile monitoring up -d
+```
+
+**Services:**
+
+- Backend API: `http://localhost:8080`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` (admin/admin123)
+
+### 🔧 Environment Configuration
+
+#### Development Environment
+
+Copy the environment template:
+
+```bash
+cp env.dev.example .env
+```
+
+Edit `.env` with your configuration:
+
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5433
+DB_NAME=oneclick_dev
+DB_USER=oneclick_dev
+DB_PASSWORD=oneclick_dev123
+DB_SSLMODE=disable
+
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6380
+REDIS_PASSWORD=
+
+# Server Configuration
+SERVER_PORT=8080
+SERVER_HOST=0.0.0.0
+
+# JWT Configuration
+JWT_SECRET=dev-jwt-secret-key-change-in-production
+JWT_EXPIRES_IN=24h
+
+# Encryption Key
+ONECLICK_MASTER_KEY=dev-master-key-for-encryption-change-in-production
+
+# Logging
+LOG_LEVEL=debug
+ENV=development
+```
+
+### 📊 Monitoring Configuration
+
+#### Prometheus Configuration
+
+The monitoring stack includes pre-configured Prometheus with:
+
+- Backend metrics collection (`backend:9091`)
+- Kubernetes cluster metrics
+- Application and pod metrics
+- Alert rules and recording rules
+
+#### Grafana Dashboards
+
+Grafana comes pre-configured with:
+
+- OneClick Backend metrics dashboard
+- Kubernetes cluster overview
+- Application performance metrics
+- Pod resource utilization
+
+### 🛠️ Development Scripts
+
+#### Using the Development Script
+
+```bash
+# Make the script executable
+chmod +x dev.sh
+
+# Start development infrastructure
+./dev.sh dev-start
+
+# Start full stack
+./dev.sh full-start
+
+# Start with monitoring
+./dev.sh monitoring
+
+# View logs
+./dev.sh logs backend
+./dev.sh logs postgres
+./dev.sh logs redis
+
+# Show status
+./dev.sh status
+
+# Clean up
+./dev.sh clean
+```
+
+#### Using Make Commands
+
+```bash
+# Development infrastructure
+make dev-start          # Start PostgreSQL + Redis
+make dev-stop           # Stop development infrastructure
+
+# Full stack
+make full-start         # Start all services
+make full-stop          # Stop all services
+
+# Monitoring
+make monitoring         # Start with Prometheus + Grafana
+
+# Logs
+make logs              # Show all logs
+make logs-backend       # Show backend logs
+make logs-postgres      # Show PostgreSQL logs
+make logs-redis        # Show Redis logs
+
+# Status and cleanup
+make status            # Show service status
+make clean             # Clean up resources
+make clean-volumes      # Clean up with data deletion
+```
+
+### 🐳 Docker Commands
+
+#### Build and Run with Docker
 
 ```bash
 # Build Docker image
@@ -1633,7 +1825,7 @@ make docker-build
 make docker-run
 ```
 
-### Manual Docker Commands
+#### Manual Docker Commands
 
 ```bash
 # Build image
@@ -1642,6 +1834,50 @@ docker build -t oneclick .
 # Run container
 docker run --env-file .env -p 8080:8080 oneclick
 ```
+
+### 🔄 Database Migrations
+
+Migrations are automatically run when starting services:
+
+```bash
+# Manual migration (development)
+make migrate-up
+
+# Manual migration (full stack)
+docker-compose exec backend migrate -path /migrations -database "postgres://oneclick:oneclick123@postgres:5432/oneclick?sslmode=disable" up
+```
+
+### 📁 Docker Volumes
+
+The Docker setup uses named volumes for data persistence:
+
+- `postgres_data`: PostgreSQL data
+- `redis_data`: Redis data
+- `prometheus_data`: Prometheus metrics data
+- `grafana_data`: Grafana configuration and dashboards
+
+### 🚀 Production Considerations
+
+#### Security
+
+- Change all default passwords and secrets
+- Use proper SSL/TLS certificates
+- Configure firewall rules
+- Enable authentication for monitoring services
+
+#### Performance
+
+- Configure resource limits for containers
+- Use external managed databases for production
+- Set up proper backup strategies
+- Monitor resource usage
+
+#### Scaling
+
+- Use external load balancers
+- Configure horizontal pod autoscaling
+- Set up proper service discovery
+- Implement health checks and readiness probes
 
 ## Testing the API
 
