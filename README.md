@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, custom domain management with SSL certificate automation, and real-time pod runtime management with terminal access.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, custom domain management with SSL certificate automation, real-time pod runtime management with terminal access, and comprehensive monitoring with Prometheus integration.
 
 ## Tech Stack
 
@@ -24,6 +24,7 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **Domain Management**: Custom domain configuration with cert-manager integration
 - **SSL Certificates**: Automated SSL certificate provisioning with ACME challenges
 - **Pod Management**: Real-time pod monitoring, logs streaming, and terminal access
+- **Monitoring**: Prometheus integration with metrics aggregation, caching, and rate limiting
 
 ## Features
 
@@ -141,6 +142,24 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - Organization-scoped pod access control
 - Kubernetes client-go integration for cluster operations
 - WebSocket-based terminal with TTY resize support
+
+### 📊 Monitoring & Metrics
+
+- Prometheus integration for cluster, application, and pod metrics
+- Real-time CPU and memory usage monitoring with time series data
+- Cluster-level metrics including node health and resource utilization
+- Application-level metrics with pod counts and status aggregation
+- Pod-level metrics for individual container performance
+- Alert management with severity levels and status tracking
+- In-memory caching with configurable TTL for performance
+- Rate limiting (100 requests per minute per user) to prevent abuse
+- PromQL query execution with range and instant queries
+- Comprehensive error handling and authorization
+- Health check endpoints for monitoring service status
+- Organization-scoped monitoring access control
+- Background metrics collection and aggregation
+- Support for multiple time ranges (5m, 15m, 1h, 6h, 24h)
+- Top alerts filtering and limiting for application dashboards
 
 ### 🔒 Security Features
 
@@ -1907,6 +1926,245 @@ Upgrades to WebSocket connection for real-time terminal interaction.
 - **Input**: Raw terminal input data
 - **Output**: Raw terminal output data
 - **Resize**: `{"type": "resize", "cols": 80, "rows": 24}`
+
+### Monitoring & Metrics
+
+#### Get Cluster Metrics
+
+```http
+GET /clusters/{clusterId}/monitoring?range=5m
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "cluster_id": "uuid",
+  "time_range": "5m",
+  "cpu_usage": {
+    "metric_name": "cpu_usage",
+    "labels": {
+      "__name__": "cpu_usage"
+    },
+    "data_points": [
+      {
+        "timestamp": "2024-01-01T12:00:00Z",
+        "value": 0.5
+      },
+      {
+        "timestamp": "2024-01-01T12:01:00Z",
+        "value": 0.6
+      }
+    ]
+  },
+  "memory_usage": {
+    "metric_name": "memory_usage",
+    "labels": {
+      "__name__": "memory_usage"
+    },
+    "data_points": [
+      {
+        "timestamp": "2024-01-01T12:00:00Z",
+        "value": 1073741824
+      },
+      {
+        "timestamp": "2024-01-01T12:01:00Z",
+        "value": 1073741824
+      }
+    ]
+  },
+  "node_count": 3,
+  "healthy_nodes": 3,
+  "unhealthy_nodes": 0,
+  "timestamp": "2024-01-01T12:05:00Z"
+}
+```
+
+#### Get Application Metrics
+
+```http
+GET /apps/{appId}/monitoring?range=5m
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "app_id": "uuid",
+  "cluster_id": "uuid",
+  "time_range": "5m",
+  "cpu_usage": {
+    "metric_name": "cpu_usage",
+    "labels": {
+      "namespace": "my-app"
+    },
+    "data_points": [
+      {
+        "timestamp": "2024-01-01T12:00:00Z",
+        "value": 0.2
+      },
+      {
+        "timestamp": "2024-01-01T12:01:00Z",
+        "value": 0.3
+      }
+    ]
+  },
+  "memory_usage": {
+    "metric_name": "memory_usage",
+    "labels": {
+      "namespace": "my-app"
+    },
+    "data_points": [
+      {
+        "timestamp": "2024-01-01T12:00:00Z",
+        "value": 536870912
+      },
+      {
+        "timestamp": "2024-01-01T12:01:00Z",
+        "value": 536870912
+      }
+    ]
+  },
+  "pod_count": 2,
+  "running_pods": 2,
+  "pending_pods": 0,
+  "failed_pods": 0,
+  "top_alerts": [
+    {
+      "id": "uuid",
+      "name": "HighCPUUsage",
+      "description": "CPU usage is above 80%",
+      "severity": "warning",
+      "status": "firing",
+      "labels": {
+        "namespace": "my-app",
+        "instance": "pod-1"
+      },
+      "starts_at": "2024-01-01T12:00:00Z"
+    }
+  ],
+  "timestamp": "2024-01-01T12:05:00Z"
+}
+```
+
+#### Get Pod Metrics
+
+```http
+GET /pods/{podId}/monitoring?range=5m
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "pod_id": "uuid",
+  "pod_name": "my-app-pod-1",
+  "namespace": "my-app",
+  "cluster_id": "uuid",
+  "cpu_usage": {
+    "metric_name": "cpu_usage",
+    "labels": {
+      "pod": "my-app-pod-1",
+      "namespace": "my-app"
+    },
+    "data_points": [
+      {
+        "timestamp": "2024-01-01T12:00:00Z",
+        "value": 0.1
+      },
+      {
+        "timestamp": "2024-01-01T12:01:00Z",
+        "value": 0.15
+      }
+    ]
+  },
+  "memory_usage": {
+    "metric_name": "memory_usage",
+    "labels": {
+      "pod": "my-app-pod-1",
+      "namespace": "my-app"
+    },
+    "data_points": [
+      {
+        "timestamp": "2024-01-01T12:00:00Z",
+        "value": 268435456
+      },
+      {
+        "timestamp": "2024-01-01T12:01:00Z",
+        "value": 268435456
+      }
+    ]
+  },
+  "status": "Running",
+  "restarts": 0,
+  "timestamp": "2024-01-01T12:05:00Z"
+}
+```
+
+#### Get Cluster Alerts
+
+```http
+GET /clusters/{clusterId}/alerts?limit=10
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "alerts": [
+    {
+      "id": "uuid",
+      "name": "HighCPUUsage",
+      "description": "CPU usage is above 80%",
+      "severity": "warning",
+      "status": "firing",
+      "labels": {
+        "instance": "node1",
+        "job": "kubernetes-nodes"
+      },
+      "starts_at": "2024-01-01T12:00:00Z"
+    },
+    {
+      "id": "uuid",
+      "name": "HighMemoryUsage",
+      "description": "Memory usage is above 90%",
+      "severity": "critical",
+      "status": "firing",
+      "labels": {
+        "instance": "node2",
+        "job": "kubernetes-nodes"
+      },
+      "starts_at": "2024-01-01T12:00:00Z"
+    }
+  ],
+  "count": 2
+}
+```
+
+#### Get Monitoring Health
+
+```http
+GET /monitoring/health
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-01T12:00:00Z",
+  "services": {
+    "prometheus": "healthy",
+    "cache": "healthy",
+    "rate_limit": "healthy"
+  }
+}
+```
 
 ## Configuration
 

@@ -80,6 +80,8 @@ func main() {
 	// In a real implementation, you would create a Kubernetes client factory
 	// that creates clients per request based on the cluster's kubeconfig
 	podService := services.NewPodService(appRepo, clusterRepo, orgRepo, cryptoService, nil, logger)
+	// Initialize monitoring service with nil Prometheus client (will be created per request)
+	monitoringService := services.NewMonitoringService(appRepo, clusterRepo, orgRepo, cryptoService, nil, logger)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -93,6 +95,7 @@ func main() {
 	jobHandler := handlers.NewJobHandler(jobService, logger)
 	domainHandler := handlers.NewDomainHandler(domainService, logger)
 	podHandler := handlers.NewPodHandler(podService, logger)
+	monitoringHandler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -254,6 +257,29 @@ func main() {
 		pods.GET("/:podId/logs", podHandler.GetPodLogs)
 		pods.GET("/:podId/describe", podHandler.GetPodDescribe)
 		pods.POST("/:podId/terminal", podHandler.ExecInPod)
+		pods.GET("/:podId/monitoring", monitoringHandler.GetPodMetrics)
+	}
+
+	// Global monitoring routes (require authentication)
+	monitoring := router.Group("/monitoring")
+	monitoring.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		monitoring.GET("/health", monitoringHandler.GetMonitoringHealth)
+	}
+
+	// Cluster monitoring routes (require authentication)
+	clustersMonitoring := router.Group("/clusters")
+	clustersMonitoring.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		clustersMonitoring.GET("/:clusterId/monitoring", monitoringHandler.GetClusterMetrics)
+		clustersMonitoring.GET("/:clusterId/alerts", monitoringHandler.GetAlerts)
+	}
+
+	// App monitoring routes (require authentication)
+	appsMonitoring := router.Group("/apps")
+	appsMonitoring.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		appsMonitoring.GET("/:appId/monitoring", monitoringHandler.GetApplicationMetrics)
 	}
 
 	// Public webhook routes (no authentication required)
