@@ -1,0 +1,26 @@
+{
+  "ref": "refs/heads/main",
+  "repository": {
+    "full_name": "user/example-repo",
+    "clone_url": "https://github.com/user/example-repo.git",
+    "ssh_url": "git@github.com:user/example-repo.git"
+  },
+  "commits": [
+    {
+      "id": "abc123def456",
+      "message": "Add new feature",
+      "author": {
+        "name": "John Doe",
+        "email": "john@example.com"
+      }
+    }
+  ],
+  "head_commit": {
+    "id": "abc123def456",
+    "message": "Add new feature",
+    "author": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  }
+}

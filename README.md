@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, and Kubernetes cluster management.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, and webhook processing.
 
 ## Tech Stack
 
@@ -14,7 +14,8 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **Testing**: Testify
 - **Architecture**: Clean Architecture
 - **Kubernetes**: client-go for cluster management
-- **Encryption**: AES-GCM for kubeconfig encryption
+- **Encryption**: AES-GCM for kubeconfig and token encryption
+- **Webhooks**: HMAC signature verification for Git providers
 
 ## Features
 
@@ -43,6 +44,24 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - Cluster status tracking (provisioning/active/error/deleting)
 - Kubernetes API integration using client-go
 
+### 📁 Repository Management
+
+- Connect GitHub, GitLab, and Gitea repositories
+- Encrypted access token storage
+- Repository configuration management
+- Organization-based repository access
+- Repository listing and details
+- Repository deletion with permission checks
+
+### 🔗 Webhook Integration
+
+- Public webhook endpoints for all Git providers
+- HMAC signature verification for security
+- Support for GitHub, GitLab, and Gitea webhooks
+- Automatic pipeline triggering on code pushes
+- Webhook payload parsing and processing
+- Provider-specific header handling
+
 ### 🔒 Security Features
 
 - AES-GCM encryption for sensitive data
@@ -63,7 +82,8 @@ oneclick/
 │   │   └── middleware/   # HTTP middleware
 │   ├── app/
 │   │   ├── crypto/       # Encryption utilities
-│   │   └── services/     # Business logic services
+│   │   ├── services/     # Business logic services
+│   │   └── webhook/     # Webhook signature verification
 │   ├── config/           # Configuration management
 │   ├── domain/           # Domain models and interfaces
 │   └── repo/             # Data access layer
@@ -537,6 +557,141 @@ Authorization: Bearer <jwt-token>
 
 **Response (204):** No content
 
+### Repositories
+
+#### Create Repository
+
+```http
+POST /orgs/{orgId}/repos
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "type": "github",
+  "url": "https://github.com/user/repo.git",
+  "default_branch": "main",
+  "token": "ghp_xxxxxxxxxxxxxxxxxxxx" // optional
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "type": "github",
+  "url": "https://github.com/user/repo.git",
+  "default_branch": "main",
+  "config": "{}",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Get Organization Repositories
+
+```http
+GET /orgs/{orgId}/repos
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "type": "github",
+    "url": "https://github.com/user/repo.git",
+    "default_branch": "main",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+#### Get Repository Details
+
+```http
+GET /repos/{repoId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "id": "uuid",
+  "type": "github",
+  "url": "https://github.com/user/repo.git",
+  "default_branch": "main",
+  "config": "{}",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Delete Repository
+
+```http
+DELETE /repos/{repoId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (204):** No content
+
+### Webhooks
+
+#### Git Webhook Endpoint
+
+```http
+POST /hooks/git?provider=github&secret=your-webhook-secret
+Content-Type: application/json
+X-Hub-Signature-256: sha256=your-signature
+
+{
+  "ref": "refs/heads/main",
+  "repository": {
+    "full_name": "user/repo",
+    "clone_url": "https://github.com/user/repo.git"
+  },
+  "commits": [
+    {
+      "id": "abc123",
+      "message": "Add new feature",
+      "author": {
+        "name": "John Doe",
+        "email": "john@example.com"
+      }
+    }
+  ]
+}
+```
+
+**Response (202):**
+
+```json
+{
+  "message": "Webhook processed successfully"
+}
+```
+
+#### Test Webhook Endpoint
+
+```http
+GET /hooks/test?provider=github
+```
+
+**Response (200):**
+
+```json
+{
+  "message": "Webhook endpoint is working",
+  "provider": "github",
+  "status": "ready"
+}
+```
+
 ## Development
 
 ### Available Make Commands
@@ -645,6 +800,16 @@ curl -X GET http://localhost:8080/auth/me \
   -H "Authorization: Bearer TOKEN"
 ```
 
+### Webhook Payload Samples
+
+Sample webhook payloads are available in the `samples/` directory:
+
+- `samples/github-push-payload.json` - GitHub push event payload
+- `samples/gitlab-push-payload.json` - GitLab push event payload
+- `samples/gitea-push-payload.json` - Gitea push event payload
+
+For detailed webhook documentation, see `webhook-payloads.md`.
+
 ### Using the Test Scripts
 
 #### Test Organizations API:
@@ -659,12 +824,19 @@ curl -X GET http://localhost:8080/auth/me \
 ./test_clusters_api.sh
 ```
 
+#### Test Repositories API:
+
+```bash
+./test_repositories_api.sh
+```
+
 These scripts will:
 
 1. Register a test user
 2. Create an organization
-3. Test all organization/cluster operations
-4. Clean up test data
+3. Test all organization/cluster/repository operations
+4. Test webhook functionality
+5. Clean up test data
 
 ## Configuration
 
@@ -687,6 +859,9 @@ The application uses environment variables for configuration. See `.env.example`
 - Kubeconfigs are encrypted using AES-GCM before storage
 - Ensure `ONECLICK_MASTER_KEY` is exactly 32 bytes for proper encryption
 - Cluster health checks validate kubeconfig connectivity before storing
+- Repository access tokens are encrypted using AES-GCM before storage
+- Webhook signatures are verified using HMAC-SHA256 for security
+- Webhook endpoints are public but require signature verification
 
 ## Contributing
 

@@ -52,6 +52,7 @@ func main() {
 	userRepo := repo.NewUserRepository(db)
 	orgRepo := repo.NewOrganizationRepository(db)
 	clusterRepo := repo.NewClusterRepository(db)
+	repositoryRepo := repo.NewRepositoryRepository(db)
 
 	// Initialize crypto
 	cryptoService, err := crypto.NewCrypto()
@@ -63,11 +64,14 @@ func main() {
 	authService := services.NewAuthService(userRepo, cfg.JWT.Secret)
 	orgService := services.NewOrganizationService(orgRepo, userRepo)
 	clusterService := services.NewClusterService(clusterRepo, orgRepo, cryptoService)
+	repositoryService := services.NewRepositoryService(repositoryRepo, orgRepo, cryptoService)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	orgHandler := handlers.NewOrganizationHandler(orgService)
 	clusterHandler := handlers.NewClusterHandler(clusterService)
+	repositoryHandler := handlers.NewRepositoryHandler(repositoryService)
+	webhookHandler := handlers.NewWebhookHandler(repositoryService, logger)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -122,6 +126,14 @@ func main() {
 				clusters.GET("", clusterHandler.GetClustersByOrg)
 				clusters.POST("/import", clusterHandler.ImportCluster)
 			}
+
+			// Repository management routes
+			repos := orgSpecific.Group("/repos")
+			repos.Use(middleware.RequireMemberMiddleware())
+			{
+				repos.POST("", repositoryHandler.CreateRepository)
+				repos.GET("", repositoryHandler.GetRepositoriesByOrg)
+			}
 		}
 	}
 
@@ -132,6 +144,21 @@ func main() {
 		clusters.GET("/:clusterId", clusterHandler.GetCluster)
 		clusters.GET("/:clusterId/status", clusterHandler.GetClusterHealth)
 		clusters.DELETE("/:clusterId", middleware.RequireAdminOrOwnerMiddleware(), clusterHandler.DeleteCluster)
+	}
+
+	// Global repository routes (require authentication)
+	repos := router.Group("/repos")
+	repos.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		repos.GET("/:repoId", repositoryHandler.GetRepository)
+		repos.DELETE("/:repoId", middleware.RequireAdminOrOwnerMiddleware(), repositoryHandler.DeleteRepository)
+	}
+
+	// Public webhook routes (no authentication required)
+	webhooks := router.Group("/hooks")
+	{
+		webhooks.POST("/git", webhookHandler.GitWebhook)
+		webhooks.GET("/test", webhookHandler.TestWebhook)
 	}
 
 	// Start server

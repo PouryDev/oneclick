@@ -1,0 +1,18 @@
+{
+  "ref": "refs/heads/main",
+  "repository": {
+    "full_name": "user/example-repo",
+    "clone_url": "https://gitea.example.com/user/example-repo.git",
+    "ssh_url": "git@gitea.example.com:user/example-repo.git"
+  },
+  "commits": [
+    {
+      "id": "ghi789jkl012",
+      "message": "Fix bug in authentication",
+      "author": {
+        "name": "Mike Wilson",
+        "email": "mike@example.com"
+      }
+    }
+  ]
+}

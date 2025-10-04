@@ -264,3 +264,84 @@ WHERE
 
 -- name: DeleteCluster :exec
 DELETE FROM clusters WHERE id = $1;
+
+-- Repository queries
+-- name: CreateRepository :one
+INSERT INTO
+    repositories (
+        org_id,
+        type,
+        url,
+        default_branch,
+        config
+    )
+VALUES ($1, $2, $3, $4, $5) RETURNING id,
+    org_id,
+    type,
+    url,
+    default_branch,
+    config,
+    created_at,
+    updated_at;
+
+-- name: GetRepositoryByID :one
+SELECT
+    id,
+    org_id,
+    type,
+    url,
+    default_branch,
+    config,
+    created_at,
+    updated_at
+FROM repositories
+WHERE
+    id = $1;
+
+-- name: GetRepositoriesByOrgID :many
+SELECT
+    id,
+    org_id,
+    type,
+    url,
+    default_branch,
+    config,
+    created_at,
+    updated_at
+FROM repositories
+WHERE
+    org_id = $1
+ORDER BY created_at DESC;
+
+-- name: GetRepositoryByURL :one
+SELECT
+    id,
+    org_id,
+    type,
+    url,
+    default_branch,
+    config,
+    created_at,
+    updated_at
+FROM repositories
+WHERE
+    org_id = $1
+    AND url = $2;
+
+-- name: UpdateRepositoryConfig :one
+UPDATE repositories
+SET
+    config = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    type,
+    url,
+    default_branch,
+    config,
+    created_at,
+    updated_at;
+
+-- name: DeleteRepository :exec
+DELETE FROM repositories WHERE id = $1;

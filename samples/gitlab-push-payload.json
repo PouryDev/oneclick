@@ -1,0 +1,18 @@
+{
+  "ref": "refs/heads/main",
+  "repository": {
+    "name": "example-repo",
+    "url": "https://gitlab.com/user/example-repo.git",
+    "homepage": "https://gitlab.com/user/example-repo"
+  },
+  "commits": [
+    {
+      "id": "def456ghi789",
+      "message": "Update documentation",
+      "author": {
+        "name": "Jane Doe",
+        "email": "jane@example.com"
+      }
+    }
+  ]
+}
