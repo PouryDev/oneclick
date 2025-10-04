@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, and application deployment with release management.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, and infrastructure service provisioning.
 
 ## Tech Stack
 
@@ -17,6 +17,7 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **Encryption**: AES-GCM for kubeconfig and token encryption
 - **Webhooks**: HMAC signature verification for Git providers
 - **Deployments**: Background worker for Kubernetes deployments
+- **Infrastructure**: Helm-based service provisioning with YAML configuration
 
 ## Features
 
@@ -74,6 +75,17 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - Kubernetes manifest generation
 - Environment and configuration management
 
+### 🏗️ Infrastructure Service Provisioning
+
+- YAML-based infrastructure configuration (`infra-config.yml`)
+- Helm chart-based service provisioning
+- Secret management with `SECRET::name` markers
+- Template substitution for dynamic configuration
+- Background service provisioning with status tracking
+- Kubernetes secret management
+- Service lifecycle management (provision/unprovision)
+- Role-based access control for infrastructure operations
+
 ### 🔒 Security Features
 
 - AES-GCM encryption for sensitive data
@@ -95,6 +107,8 @@ oneclick/
 │   ├── app/
 │   │   ├── crypto/       # Encryption utilities
 │   │   ├── deployment/   # Kubernetes deployment generator
+│   │   ├── infra/        # Infrastructure configuration parser
+│   │   ├── provisioner/  # Helm-based service provisioning
 │   │   ├── services/     # Business logic services
 │   │   ├── webhook/     # Webhook signature verification
 │   │   └── worker/      # Background workers
@@ -112,6 +126,32 @@ oneclick/
 - Go 1.20 or higher
 - PostgreSQL 12 or higher
 - Make (optional, for using Makefile commands)
+
+### Prerequisites
+
+- **Go 1.20+**: Required for building and running the application
+- **PostgreSQL**: Database for storing application data
+- **Kubernetes Cluster**: For deploying applications and services
+- **Helm CLI**: Required for infrastructure service provisioning
+- **kubectl**: For Kubernetes cluster management
+
+### Helm Installation
+
+OneClick requires Helm CLI for infrastructure service provisioning. Install Helm:
+
+```bash
+# macOS
+brew install helm
+
+# Linux/Windows
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+```
+
+Verify installation:
+
+```bash
+helm version
+```
 
 ## Quick Start
 
@@ -868,6 +908,112 @@ Authorization: Bearer <jwt-token>
 
 **Response (204):** No content
 
+### Infrastructure Service Provisioning
+
+#### Provision Services
+
+```http
+POST /apps/{appId}/infra/provision
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "infra_config": "services:\n  db:\n    chart: bitnami/postgresql\n    env:\n      POSTGRES_DB: webshop\n      POSTGRES_PASSWORD: SECRET::db-password\n  cache:\n    chart: bitnami/redis\n    env:\n      REDIS_PASSWORD: SECRET::redis-password\napp:\n  env:\n    DATABASE_URL: \"postgres://shop:{{services.db.env.POSTGRES_PASSWORD}}@db:5432/webshop\""
+}
+```
+
+**Response (202):**
+
+```json
+{
+  "services": [
+    {
+      "id": "uuid",
+      "name": "db",
+      "chart": "bitnami/postgresql",
+      "status": "pending",
+      "namespace": "my-app",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "message": "Provisioning initiated for 1 services"
+}
+```
+
+#### Get Application Services
+
+```http
+GET /apps/{appId}/infra/services
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "app_id": "uuid",
+    "name": "db",
+    "chart": "bitnami/postgresql",
+    "status": "running",
+    "namespace": "my-app",
+    "configs": [
+      {
+        "id": "uuid",
+        "key": "POSTGRES_DB",
+        "value": "webshop",
+        "is_secret": false
+      },
+      {
+        "id": "uuid",
+        "key": "POSTGRES_PASSWORD",
+        "value": "***MASKED***",
+        "is_secret": true
+      }
+    ],
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+#### Get Service Configuration
+
+```http
+GET /services/{configId}/config
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "config": {
+    "id": "uuid",
+    "key": "POSTGRES_PASSWORD",
+    "value": "***MASKED***",
+    "is_secret": true
+  }
+}
+```
+
+#### Unprovision Service
+
+```http
+DELETE /services/{serviceId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (202):**
+
+```json
+{
+  "message": "Service unprovisioning initiated"
+}
+```
+
 ## Development
 
 ### Available Make Commands
@@ -983,8 +1129,44 @@ Sample webhook payloads are available in the `samples/` directory:
 - `samples/github-push-payload.json` - GitHub push event payload
 - `samples/gitlab-push-payload.json` - GitLab push event payload
 - `samples/gitea-push-payload.json` - Gitea push event payload
+- `samples/infra-config.yml` - Example infrastructure configuration
 
 For detailed webhook documentation, see `webhook-payloads.md`.
+
+### Infrastructure Configuration Format
+
+OneClick uses YAML-based infrastructure configuration files (`infra-config.yml`) to define services and their dependencies:
+
+```yaml
+services:
+  # PostgreSQL Database
+  db:
+    chart: bitnami/postgresql
+    env:
+      POSTGRES_DB: webshop
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: SECRET::webshop-postgres-password
+
+  # Redis Cache
+  cache:
+    chart: bitnami/redis
+    env:
+      REDIS_PASSWORD: SECRET::redis-password
+
+app:
+  env:
+    # Template substitution using service configurations
+    DATABASE_URL: "postgres://shop:{{services.db.env.POSTGRES_PASSWORD}}@db:5432/webshop"
+    REDIS_URL: "redis://:{{services.cache.env.REDIS_PASSWORD}}@cache:6379"
+```
+
+**Key Features:**
+
+- **Service Definitions**: Define services with Helm charts and environment variables
+- **Secret Management**: Use `SECRET::name` markers for sensitive data
+- **Template Substitution**: Reference service configurations in app environment variables
+- **Helm Integration**: Automatic Helm chart installation and management
+- **Background Processing**: Async service provisioning with status tracking
 
 ### Deployment Architecture
 
@@ -1031,6 +1213,12 @@ The deployment worker supports:
 ./test_applications_api.sh
 ```
 
+#### Test Infrastructure API:
+
+```bash
+./test_infrastructure_api.sh
+```
+
 These scripts will:
 
 1. Register a test user
@@ -1038,7 +1226,8 @@ These scripts will:
 3. Test all organization/cluster/repository/application operations
 4. Test webhook functionality
 5. Test deployment and rollback operations
-6. Clean up test data
+6. Test infrastructure service provisioning
+7. Clean up test data
 
 ## Configuration
 
@@ -1067,6 +1256,9 @@ The application uses environment variables for configuration. See `.env.example`
 - Application deployments use encrypted kubeconfigs for Kubernetes access
 - Background workers process deployments securely with proper error handling
 - Release metadata is stored securely with deployment history tracking
+- Infrastructure service provisioning requires Admin/Owner permissions
+- Service configurations with secrets are properly masked in API responses
+- Helm chart installations use secure Kubernetes client connections
 
 ## Contributing
 

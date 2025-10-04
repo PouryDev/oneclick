@@ -534,3 +534,159 @@ WHERE
 
 -- name: DeleteRelease :exec
 DELETE FROM releases WHERE id = $1;
+
+-- Service queries
+-- name: CreateService :one
+INSERT INTO
+    services (
+        app_id,
+        name,
+        chart,
+        status,
+        namespace
+    )
+VALUES ($1, $2, $3, $4, $5) RETURNING id,
+    app_id,
+    name,
+    chart,
+    status,
+    namespace,
+    created_at,
+    updated_at;
+
+-- name: GetServiceByID :one
+SELECT
+    id,
+    app_id,
+    name,
+    chart,
+    status,
+    namespace,
+    created_at,
+    updated_at
+FROM services
+WHERE
+    id = $1;
+
+-- name: GetServicesByAppID :many
+SELECT
+    id,
+    app_id,
+    name,
+    chart,
+    status,
+    namespace,
+    created_at,
+    updated_at
+FROM services
+WHERE
+    app_id = $1
+ORDER BY created_at DESC;
+
+-- name: GetServiceByNameInApp :one
+SELECT
+    id,
+    app_id,
+    name,
+    chart,
+    status,
+    namespace,
+    created_at,
+    updated_at
+FROM services
+WHERE
+    app_id = $1
+    AND name = $2;
+
+-- name: UpdateServiceStatus :one
+UPDATE services
+SET
+    status = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    name,
+    chart,
+    status,
+    namespace,
+    created_at,
+    updated_at;
+
+-- name: DeleteService :exec
+DELETE FROM services WHERE id = $1;
+
+-- Service Config queries
+-- name: CreateServiceConfig :one
+INSERT INTO
+    service_configs (
+        service_id,
+        key,
+        value,
+        is_secret
+    )
+VALUES ($1, $2, $3, $4) RETURNING id,
+    service_id,
+    key,
+    value,
+    is_secret,
+    created_at,
+    updated_at;
+
+-- name: GetServiceConfigByID :one
+SELECT
+    id,
+    service_id,
+    key,
+    value,
+    is_secret,
+    created_at,
+    updated_at
+FROM service_configs
+WHERE
+    id = $1;
+
+-- name: GetServiceConfigsByServiceID :many
+SELECT
+    id,
+    service_id,
+    key,
+    value,
+    is_secret,
+    created_at,
+    updated_at
+FROM service_configs
+WHERE
+    service_id = $1
+ORDER BY key;
+
+-- name: GetServiceConfigByKey :one
+SELECT
+    id,
+    service_id,
+    key,
+    value,
+    is_secret,
+    created_at,
+    updated_at
+FROM service_configs
+WHERE
+    service_id = $1
+    AND key = $2;
+
+-- name: UpdateServiceConfigValue :one
+UPDATE service_configs
+SET
+    value = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    service_id,
+    key,
+    value,
+    is_secret,
+    created_at,
+    updated_at;
+
+-- name: DeleteServiceConfig :exec
+DELETE FROM service_configs WHERE id = $1;

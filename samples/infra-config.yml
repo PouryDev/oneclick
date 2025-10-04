@@ -1,0 +1,102 @@
+# Example infra-config.yml for OneClick
+# This file defines the infrastructure services and application configuration
+# for a web application with database, cache, and message broker
+
+services:
+  # PostgreSQL Database
+  db:
+    chart: bitnami/postgresql
+    env:
+      POSTGRES_DB: webshop
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: SECRET::webshop-postgres-password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+
+  # Redis Cache
+  cache:
+    chart: bitnami/redis
+    env:
+      REDIS_PASSWORD: SECRET::redis-password
+      REDIS_DISABLE_COMMANDS: FLUSHDB,FLUSHALL
+      REDIS_MAXMEMORY_POLICY: allkeys-lru
+
+  # RabbitMQ Message Broker
+  broker:
+    chart: bitnami/rabbitmq
+    env:
+      RABBITMQ_USERNAME: admin
+      RABBITMQ_PASSWORD: SECRET::rabbitmq-password
+      RABBITMQ_ERLANG_COOKIE: SECRET::rabbitmq-erlang-cookie
+      RABBITMQ_DEFAULT_USER: webshop
+      RABBITMQ_DEFAULT_PASS: SECRET::rabbitmq-default-password
+
+  # Elasticsearch for search and logging
+  search:
+    chart: elastic/elasticsearch
+    env:
+      ELASTIC_PASSWORD: SECRET::elasticsearch-password
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      discovery.type: single-node
+
+  # MinIO for object storage
+  storage:
+    chart: minio/minio
+    env:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: SECRET::minio-password
+      MINIO_DEFAULT_BUCKETS: uploads,assets,backups
+
+# Application configuration
+app:
+  env:
+    # Database connection
+    DATABASE_URL: "postgres://shop:{{services.db.env.POSTGRES_PASSWORD}}@db:5432/webshop"
+    DATABASE_HOST: db
+    DATABASE_PORT: 5432
+    DATABASE_NAME: webshop
+    DATABASE_USER: shop
+    DATABASE_PASSWORD: "{{services.db.env.POSTGRES_PASSWORD}}"
+    
+    # Redis connection
+    REDIS_URL: "redis://:{{services.cache.env.REDIS_PASSWORD}}@cache:6379"
+    REDIS_HOST: cache
+    REDIS_PORT: 6379
+    REDIS_PASSWORD: "{{services.cache.env.REDIS_PASSWORD}}"
+    
+    # RabbitMQ connection
+    RABBITMQ_URL: "amqp://webshop:{{services.broker.env.RABBITMQ_DEFAULT_PASS}}@broker:5672/"
+    RABBITMQ_HOST: broker
+    RABBITMQ_PORT: 5672
+    RABBITMQ_USER: webshop
+    RABBITMQ_PASSWORD: "{{services.broker.env.RABBITMQ_DEFAULT_PASS}}"
+    
+    # Elasticsearch connection
+    ELASTICSEARCH_URL: "http://search:9200"
+    ELASTICSEARCH_USERNAME: elastic
+    ELASTICSEARCH_PASSWORD: "{{services.search.env.ELASTIC_PASSWORD}}"
+    
+    # MinIO connection
+    MINIO_ENDPOINT: storage
+    MINIO_PORT: 9000
+    MINIO_ACCESS_KEY: admin
+    MINIO_SECRET_KEY: "{{services.storage.env.MINIO_ROOT_PASSWORD}}"
+    MINIO_USE_SSL: "false"
+    
+    # Application settings
+    APP_ENV: production
+    APP_DEBUG: "false"
+    LOG_LEVEL: info
+    SESSION_SECRET: SECRET::session-secret
+    JWT_SECRET: SECRET::jwt-secret
+    
+    # External services
+    SMTP_HOST: smtp.example.com
+    SMTP_PORT: 587
+    SMTP_USER: noreply@example.com
+    SMTP_PASSWORD: SECRET::smtp-password
+    
+    # Monitoring
+    PROMETHEUS_ENABLED: "true"
+    PROMETHEUS_PORT: 9090
+    HEALTH_CHECK_INTERVAL: 30s
