@@ -49,12 +49,15 @@ func main() {
 
 	// Initialize repositories
 	userRepo := repo.NewUserRepository(db)
+	orgRepo := repo.NewOrganizationRepository(db)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg.JWT.Secret)
+	orgService := services.NewOrganizationService(orgRepo, userRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
+	orgHandler := handlers.NewOrganizationHandler(orgService)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -76,6 +79,31 @@ func main() {
 		auth.POST("/register", authHandler.Register)
 		auth.POST("/login", authHandler.Login)
 		auth.GET("/me", middleware.AuthMiddleware(cfg.JWT.Secret), authHandler.Me)
+	}
+
+	// Organization routes
+	orgs := router.Group("/orgs")
+	orgs.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		orgs.POST("", orgHandler.CreateOrganization)
+		orgs.GET("", orgHandler.GetUserOrganizations)
+
+		// Organization-specific routes with access control
+		orgSpecific := orgs.Group("/:orgId")
+		orgSpecific.Use(middleware.OrganizationAccessMiddleware(orgRepo))
+		{
+			orgSpecific.GET("", orgHandler.GetOrganization)
+			orgSpecific.DELETE("", middleware.RequireOwnerMiddleware(), orgHandler.DeleteOrganization)
+
+			// Member management routes
+			members := orgSpecific.Group("/members")
+			members.Use(middleware.RequireAdminOrOwnerMiddleware())
+			{
+				members.POST("", orgHandler.AddMember)
+				members.PATCH("/:userId", orgHandler.UpdateMemberRole)
+				members.DELETE("/:userId", orgHandler.RemoveMember)
+			}
+		}
 	}
 
 	// Start server

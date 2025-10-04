@@ -201,6 +201,153 @@ GET /health
 }
 ```
 
+### Organizations
+
+#### Create Organization
+
+```http
+POST /orgs
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "name": "My Organization"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "name": "My Organization",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Get User's Organizations
+
+```http
+GET /orgs
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "name": "My Organization",
+    "role": "owner",
+    "clusters_count": 0,
+    "apps_count": 0,
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+#### Get Organization Details
+
+```http
+GET /orgs/{orgId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "id": "uuid",
+  "name": "My Organization",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z",
+  "members": [
+    {
+      "id": "uuid",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "role": "owner",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "clusters_count": 0,
+  "apps_count": 0
+}
+```
+
+#### Add Member to Organization
+
+```http
+POST /orgs/{orgId}/members
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "email": "member@example.com",
+  "role": "member"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "name": "Member Name",
+  "email": "member@example.com",
+  "role": "member",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Update Member Role
+
+```http
+PATCH /orgs/{orgId}/members/{userId}
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "role": "admin"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "id": "uuid",
+  "name": "Member Name",
+  "email": "member@example.com",
+  "role": "admin",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Remove Member from Organization
+
+```http
+DELETE /orgs/{orgId}/members/{userId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (204):** No content
+
+#### Delete Organization
+
+```http
+DELETE /orgs/{orgId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (204):** No content
+
 ## Development
 
 ### Available Make Commands
