@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, and webhook processing.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, and application deployment with release management.
 
 ## Tech Stack
 
@@ -13,9 +13,10 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **Authentication**: JWT (github.com/golang-jwt/jwt/v5)
 - **Testing**: Testify
 - **Architecture**: Clean Architecture
-- **Kubernetes**: client-go for cluster management
+- **Kubernetes**: client-go for cluster management and deployments
 - **Encryption**: AES-GCM for kubeconfig and token encryption
 - **Webhooks**: HMAC signature verification for Git providers
+- **Deployments**: Background worker for Kubernetes deployments
 
 ## Features
 
@@ -62,6 +63,17 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - Webhook payload parsing and processing
 - Provider-specific header handling
 
+### 🚀 Applications & Releases
+
+- Application management with repository integration
+- Release tracking with version history
+- Kubernetes deployment automation
+- Background worker for deployment processing
+- Rollback capability to previous releases
+- Real-time deployment status monitoring
+- Kubernetes manifest generation
+- Environment and configuration management
+
 ### 🔒 Security Features
 
 - AES-GCM encryption for sensitive data
@@ -82,8 +94,10 @@ oneclick/
 │   │   └── middleware/   # HTTP middleware
 │   ├── app/
 │   │   ├── crypto/       # Encryption utilities
+│   │   ├── deployment/   # Kubernetes deployment generator
 │   │   ├── services/     # Business logic services
-│   │   └── webhook/     # Webhook signature verification
+│   │   ├── webhook/     # Webhook signature verification
+│   │   └── worker/      # Background workers
 │   ├── config/           # Configuration management
 │   ├── domain/           # Domain models and interfaces
 │   └── repo/             # Data access layer
@@ -692,6 +706,168 @@ GET /hooks/test?provider=github
 }
 ```
 
+### Applications
+
+#### Create Application
+
+```http
+POST /clusters/{clusterId}/apps
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "name": "my-app",
+  "repo_id": "uuid",
+  "default_branch": "main",
+  "path": "apps/my-app"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "org_id": "uuid",
+  "cluster_id": "uuid",
+  "name": "my-app",
+  "repo_id": "uuid",
+  "path": "apps/my-app",
+  "default_branch": "main",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Get Cluster Applications
+
+```http
+GET /clusters/{clusterId}/apps
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "name": "my-app",
+    "repo_id": "uuid",
+    "path": "apps/my-app",
+    "default_branch": "main",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+#### Get Application Details
+
+```http
+GET /apps/{appId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "id": "uuid",
+  "org_id": "uuid",
+  "cluster_id": "uuid",
+  "name": "my-app",
+  "repo_id": "uuid",
+  "path": "apps/my-app",
+  "default_branch": "main",
+  "current_release": {
+    "id": "uuid",
+    "image": "myapp:latest",
+    "tag": "latest",
+    "status": "succeeded",
+    "created_at": "2024-01-01T00:00:00Z"
+  },
+  "release_count": 3,
+  "status": "succeeded",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Deploy Application
+
+```http
+POST /apps/{appId}/deploy
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "image": "myapp:v2.0.0",
+  "tag": "v2.0.0"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "release_id": "uuid",
+  "status": "pending",
+  "message": "Deployment initiated"
+}
+```
+
+#### Get Application Releases
+
+```http
+GET /apps/{appId}/releases
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "image": "myapp:v2.0.0",
+    "tag": "v2.0.0",
+    "created_by": "uuid",
+    "status": "succeeded",
+    "started_at": "2024-01-01T00:00:00Z",
+    "finished_at": "2024-01-01T00:05:00Z",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:05:00Z"
+  }
+]
+```
+
+#### Rollback Application
+
+```http
+POST /apps/{appId}/releases/{releaseId}/rollback
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "release_id": "uuid",
+  "status": "pending",
+  "message": "Rollback initiated"
+}
+```
+
+#### Delete Application
+
+```http
+DELETE /apps/{appId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (204):** No content
+
 ## Development
 
 ### Available Make Commands
@@ -810,6 +986,25 @@ Sample webhook payloads are available in the `samples/` directory:
 
 For detailed webhook documentation, see `webhook-payloads.md`.
 
+### Deployment Architecture
+
+OneClick uses a background worker architecture for Kubernetes deployments:
+
+1. **Deployment Request**: User triggers deployment via API
+2. **Release Creation**: System creates a release record with status "pending"
+3. **Background Processing**: Worker picks up deployment job
+4. **Kubernetes Deployment**: Worker deploys to cluster using encrypted kubeconfig
+5. **Status Updates**: Worker updates release status (running → succeeded/failed)
+6. **Manifest Generation**: Automatic Kubernetes YAML generation for deployments
+
+The deployment worker supports:
+
+- Namespace creation and management
+- Deployment, Service, ConfigMap, and Ingress creation
+- Health check monitoring
+- Rollback capabilities
+- Error handling and retry logic
+
 ### Using the Test Scripts
 
 #### Test Organizations API:
@@ -830,13 +1025,20 @@ For detailed webhook documentation, see `webhook-payloads.md`.
 ./test_repositories_api.sh
 ```
 
+#### Test Applications API:
+
+```bash
+./test_applications_api.sh
+```
+
 These scripts will:
 
 1. Register a test user
 2. Create an organization
-3. Test all organization/cluster/repository operations
+3. Test all organization/cluster/repository/application operations
 4. Test webhook functionality
-5. Clean up test data
+5. Test deployment and rollback operations
+6. Clean up test data
 
 ## Configuration
 
@@ -862,6 +1064,9 @@ The application uses environment variables for configuration. See `.env.example`
 - Repository access tokens are encrypted using AES-GCM before storage
 - Webhook signatures are verified using HMAC-SHA256 for security
 - Webhook endpoints are public but require signature verification
+- Application deployments use encrypted kubeconfigs for Kubernetes access
+- Background workers process deployments securely with proper error handling
+- Release metadata is stored securely with deployment history tracking
 
 ## Contributing
 

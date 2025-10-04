@@ -53,6 +53,8 @@ func main() {
 	orgRepo := repo.NewOrganizationRepository(db)
 	clusterRepo := repo.NewClusterRepository(db)
 	repositoryRepo := repo.NewRepositoryRepository(db)
+	appRepo := repo.NewApplicationRepository(db)
+	releaseRepo := repo.NewReleaseRepository(db)
 
 	// Initialize crypto
 	cryptoService, err := crypto.NewCrypto()
@@ -65,6 +67,7 @@ func main() {
 	orgService := services.NewOrganizationService(orgRepo, userRepo)
 	clusterService := services.NewClusterService(clusterRepo, orgRepo, cryptoService)
 	repositoryService := services.NewRepositoryService(repositoryRepo, orgRepo, cryptoService)
+	applicationService := services.NewApplicationService(appRepo, releaseRepo, clusterRepo, repositoryRepo, orgRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -72,6 +75,7 @@ func main() {
 	clusterHandler := handlers.NewClusterHandler(clusterService)
 	repositoryHandler := handlers.NewRepositoryHandler(repositoryService)
 	webhookHandler := handlers.NewWebhookHandler(repositoryService, logger)
+	applicationHandler := handlers.NewApplicationHandler(applicationService)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -144,6 +148,10 @@ func main() {
 		clusters.GET("/:clusterId", clusterHandler.GetCluster)
 		clusters.GET("/:clusterId/status", clusterHandler.GetClusterHealth)
 		clusters.DELETE("/:clusterId", middleware.RequireAdminOrOwnerMiddleware(), clusterHandler.DeleteCluster)
+
+		// Application management routes within clusters
+		clusters.POST("/:clusterId/apps", applicationHandler.CreateApplication)
+		clusters.GET("/:clusterId/apps", applicationHandler.GetApplicationsByCluster)
 	}
 
 	// Global repository routes (require authentication)
@@ -152,6 +160,17 @@ func main() {
 	{
 		repos.GET("/:repoId", repositoryHandler.GetRepository)
 		repos.DELETE("/:repoId", middleware.RequireAdminOrOwnerMiddleware(), repositoryHandler.DeleteRepository)
+	}
+
+	// Global application routes (require authentication)
+	apps := router.Group("/apps")
+	apps.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		apps.GET("/:appId", applicationHandler.GetApplication)
+		apps.DELETE("/:appId", middleware.RequireAdminOrOwnerMiddleware(), applicationHandler.DeleteApplication)
+		apps.POST("/:appId/deploy", applicationHandler.DeployApplication)
+		apps.GET("/:appId/releases", applicationHandler.GetReleasesByApplication)
+		apps.POST("/:appId/releases/:releaseId/rollback", applicationHandler.RollbackApplication)
 	}
 
 	// Public webhook routes (no authentication required)
