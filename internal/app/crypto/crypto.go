@@ -10,6 +10,14 @@ import (
 	"os"
 )
 
+// CryptoService defines the interface for encryption/decryption operations
+type CryptoService interface {
+	Decrypt(encryptedData []byte) ([]byte, error)
+	DecryptString(encryptedData string) (string, error)
+	Encrypt(plaintext []byte) ([]byte, error)
+	EncryptString(plaintext string) (string, error)
+}
+
 // Crypto provides AES-GCM encryption/decryption functionality
 type Crypto struct {
 	key []byte

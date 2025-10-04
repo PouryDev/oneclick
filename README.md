@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, and custom domain management with SSL certificate automation.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, custom domain management with SSL certificate automation, and real-time pod runtime management with terminal access.
 
 ## Tech Stack
 
@@ -13,7 +13,8 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **Authentication**: JWT (github.com/golang-jwt/jwt/v5)
 - **Testing**: Testify
 - **Architecture**: Clean Architecture
-- **Kubernetes**: client-go for cluster management and deployments
+- **Kubernetes**: client-go for cluster management, deployments, and pod operations
+- **WebSocket**: gorilla/websocket for real-time terminal connections
 - **Encryption**: AES-GCM for kubeconfig and token encryption
 - **Webhooks**: HMAC signature verification for Git providers
 - **Deployments**: Background worker for Kubernetes deployments
@@ -22,6 +23,7 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **CI Runners**: GitHub/GitLab/Custom runner deployment and management
 - **Domain Management**: Custom domain configuration with cert-manager integration
 - **SSL Certificates**: Automated SSL certificate provisioning with ACME challenges
+- **Pod Management**: Real-time pod monitoring, logs streaming, and terminal access
 
 ## Features
 
@@ -124,6 +126,21 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - Manual DNS challenge instructions for manual providers
 - Domain deletion with cleanup jobs
 - Organization-scoped domain management
+
+### 🚀 Runtime Management (Pods)
+
+- Real-time pod monitoring and management
+- Pod listing with status, restarts, and readiness information
+- Detailed pod information including containers, events, and conditions
+- Pod logs streaming with container-specific filtering
+- Interactive terminal access via WebSocket connections
+- kubectl describe-style pod information
+- Container-level operations and monitoring
+- Pod events and owner reference tracking
+- Audit logging for all pod access operations
+- Organization-scoped pod access control
+- Kubernetes client-go integration for cluster operations
+- WebSocket-based terminal with TTY resize support
 
 ### 🔒 Security Features
 
@@ -1677,6 +1694,219 @@ Authorization: Bearer <jwt-token>
 ```
 
 **Response (204):** No content
+
+### Pod Management (Runtime)
+
+#### Get Pods for Application
+
+```http
+GET /apps/{appId}/pods
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "pods": [
+    {
+      "id": "uuid",
+      "app_id": "uuid",
+      "name": "nginx-deployment-7d4b8c9f5-abc12",
+      "namespace": "default",
+      "status": "Running",
+      "restarts": 0,
+      "ready": "1/1",
+      "age": "2h",
+      "node_name": "worker-node-1",
+      "labels": {
+        "app": "nginx",
+        "version": "1.0"
+      },
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Get Pod Details
+
+```http
+GET /pods/{podId}?namespace={namespace}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "name": "nginx-deployment-7d4b8c9f5-abc12",
+  "namespace": "default",
+  "status": "Running",
+  "restarts": 0,
+  "ready": "1/1",
+  "age": "2h",
+  "node_name": "worker-node-1",
+  "labels": {
+    "app": "nginx",
+    "version": "1.0"
+  },
+  "containers": [
+    {
+      "name": "nginx",
+      "image": "nginx:1.21",
+      "ready": true,
+      "restart_count": 0,
+      "state": "Running",
+      "started_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "events": [
+    {
+      "type": "Normal",
+      "reason": "Created",
+      "message": "Created container nginx",
+      "count": 1,
+      "first_seen": "2024-01-15T10:30:00Z",
+      "last_seen": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "owner_refs": [
+    {
+      "kind": "ReplicaSet",
+      "name": "nginx-deployment-7d4b8c9f5",
+      "api_version": "apps/v1",
+      "controller": true
+    }
+  ],
+  "created_at": "2024-01-15T10:30:00Z",
+  "ip": "10.244.1.5",
+  "host_ip": "192.168.1.100",
+  "phase": "Running",
+  "conditions": [
+    {
+      "type": "Ready",
+      "status": "True",
+      "last_transition_time": "2024-01-15T10:30:00Z",
+      "reason": "PodReady",
+      "message": "Pod is ready"
+    }
+  ]
+}
+```
+
+#### Get Pod Logs
+
+```http
+GET /pods/{podId}/logs?namespace={namespace}&container={container}&tailLines={lines}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "pod_name": "nginx-deployment-7d4b8c9f5-abc12",
+  "namespace": "default",
+  "container": "nginx",
+  "logs": "2024/01/15 10:30:00 [notice] 1#1: start worker processes\n2024/01/15 10:30:00 [notice] 1#1: start worker process 1234\n",
+  "follow": false
+}
+```
+
+#### Get Pod Describe Information
+
+```http
+GET /pods/{podId}/describe?namespace={namespace}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "pod_detail": {
+    "name": "nginx-deployment-7d4b8c9f5-abc12",
+    "namespace": "default",
+    "status": "Running",
+    "restarts": 0,
+    "ready": "1/1",
+    "age": "2h",
+    "node_name": "worker-node-1",
+    "labels": {
+      "app": "nginx",
+      "version": "1.0"
+    },
+    "containers": [
+      {
+        "name": "nginx",
+        "image": "nginx:1.21",
+        "ready": true,
+        "restart_count": 0,
+        "state": "Running",
+        "started_at": "2024-01-15T10:30:00Z"
+      }
+    ],
+    "events": [
+      {
+        "type": "Normal",
+        "reason": "Created",
+        "message": "Created container nginx",
+        "count": 1,
+        "first_seen": "2024-01-15T10:30:00Z",
+        "last_seen": "2024-01-15T10:30:00Z"
+      }
+    ],
+    "owner_refs": [
+      {
+        "kind": "ReplicaSet",
+        "name": "nginx-deployment-7d4b8c9f5",
+        "api_version": "apps/v1",
+        "controller": true
+      }
+    ],
+    "created_at": "2024-01-15T10:30:00Z",
+    "ip": "10.244.1.5",
+    "host_ip": "192.168.1.100",
+    "phase": "Running",
+    "conditions": [
+      {
+        "type": "Ready",
+        "status": "True",
+        "last_transition_time": "2024-01-15T10:30:00Z",
+        "reason": "PodReady",
+        "message": "Pod is ready"
+      }
+    ]
+  },
+  "raw_yaml": null
+}
+```
+
+#### Execute Command in Pod Terminal (WebSocket)
+
+```http
+POST /pods/{podId}/terminal?namespace={namespace}
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "container": "nginx",
+  "command": ["/bin/bash"]
+}
+```
+
+**Response (101 Switching Protocols):**
+
+Upgrades to WebSocket connection for real-time terminal interaction.
+
+**WebSocket Message Format:**
+
+- **Input**: Raw terminal input data
+- **Output**: Raw terminal output data
+- **Resize**: `{"type": "resize", "cols": 80, "rows": 24}`
 
 ## Configuration
 

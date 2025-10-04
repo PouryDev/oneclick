@@ -76,6 +76,10 @@ func main() {
 	runnerService := services.NewRunnerService(runnerRepo, jobRepo, orgRepo, cryptoService, logger)
 	jobService := services.NewJobService(jobRepo, orgRepo, logger)
 	domainService := services.NewDomainService(domainRepo, appRepo, jobRepo, orgRepo, cryptoService, logger)
+	// For now, we'll pass nil for the Kubernetes client
+	// In a real implementation, you would create a Kubernetes client factory
+	// that creates clients per request based on the cluster's kubeconfig
+	podService := services.NewPodService(appRepo, clusterRepo, orgRepo, cryptoService, nil, logger)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -88,6 +92,7 @@ func main() {
 	runnerHandler := handlers.NewRunnerHandler(runnerService, logger)
 	jobHandler := handlers.NewJobHandler(jobService, logger)
 	domainHandler := handlers.NewDomainHandler(domainService, logger)
+	podHandler := handlers.NewPodHandler(podService, logger)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -210,6 +215,9 @@ func main() {
 		// Domain management routes
 		apps.POST("/:appId/domains", domainHandler.CreateDomain)
 		apps.GET("/:appId/domains", domainHandler.GetDomainsByApp)
+
+		// Pod management routes
+		apps.GET("/:appId/pods", podHandler.GetPodsByApp)
 	}
 
 	// Global git server routes (require authentication)
@@ -236,6 +244,16 @@ func main() {
 		domains.DELETE("/:domainId", middleware.RequireAdminOrOwnerMiddleware(), domainHandler.DeleteDomain)
 		domains.POST("/:domainId/certificates", domainHandler.RequestCertificate)
 		domains.GET("/:domainId/certificates", domainHandler.GetCertificateStatus)
+	}
+
+	// Global pod routes (require authentication)
+	pods := router.Group("/pods")
+	pods.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		pods.GET("/:podId", podHandler.GetPodDetail)
+		pods.GET("/:podId/logs", podHandler.GetPodLogs)
+		pods.GET("/:podId/describe", podHandler.GetPodDescribe)
+		pods.POST("/:podId/terminal", podHandler.ExecInPod)
 	}
 
 	// Public webhook routes (no authentication required)
