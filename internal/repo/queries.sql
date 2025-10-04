@@ -345,3 +345,192 @@ WHERE
 
 -- name: DeleteRepository :exec
 DELETE FROM repositories WHERE id = $1;
+
+-- Application queries
+-- name: CreateApplication :one
+INSERT INTO
+    applications (
+        org_id,
+        cluster_id,
+        name,
+        repo_id,
+        path,
+        default_branch
+    )
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id,
+    org_id,
+    cluster_id,
+    name,
+    repo_id,
+    path,
+    default_branch,
+    created_at,
+    updated_at;
+
+-- name: GetApplicationByID :one
+SELECT
+    id,
+    org_id,
+    cluster_id,
+    name,
+    repo_id,
+    path,
+    default_branch,
+    created_at,
+    updated_at
+FROM applications
+WHERE
+    id = $1;
+
+-- name: GetApplicationsByClusterID :many
+SELECT
+    id,
+    org_id,
+    cluster_id,
+    name,
+    repo_id,
+    path,
+    default_branch,
+    created_at,
+    updated_at
+FROM applications
+WHERE
+    cluster_id = $1
+ORDER BY created_at DESC;
+
+-- name: GetApplicationByNameInCluster :one
+SELECT
+    id,
+    org_id,
+    cluster_id,
+    name,
+    repo_id,
+    path,
+    default_branch,
+    created_at,
+    updated_at
+FROM applications
+WHERE
+    cluster_id = $1
+    AND name = $2;
+
+-- name: DeleteApplication :exec
+DELETE FROM applications WHERE id = $1;
+
+-- Release queries
+-- name: CreateRelease :one
+INSERT INTO
+    releases (
+        app_id,
+        image,
+        tag,
+        created_by,
+        status,
+        meta
+    )
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id,
+    app_id,
+    image,
+    tag,
+    created_by,
+    status,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at;
+
+-- name: GetReleaseByID :one
+SELECT
+    id,
+    app_id,
+    image,
+    tag,
+    created_by,
+    status,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at
+FROM releases
+WHERE
+    id = $1;
+
+-- name: GetReleasesByAppID :many
+SELECT
+    id,
+    app_id,
+    image,
+    tag,
+    created_by,
+    status,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at
+FROM releases
+WHERE
+    app_id = $1
+ORDER BY created_at DESC;
+
+-- name: GetLatestReleaseByAppID :one
+SELECT
+    id,
+    app_id,
+    image,
+    tag,
+    created_by,
+    status,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at
+FROM releases
+WHERE
+    app_id = $1
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: UpdateReleaseStatus :one
+UPDATE releases
+SET
+    status = $2,
+    started_at = $3,
+    finished_at = $4,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    image,
+    tag,
+    created_by,
+    status,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at;
+
+-- name: UpdateReleaseMeta :one
+UPDATE releases
+SET
+    meta = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    image,
+    tag,
+    created_by,
+    status,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at;
+
+-- name: DeleteRelease :exec
+DELETE FROM releases WHERE id = $1;
