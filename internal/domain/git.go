@@ -132,6 +132,7 @@ type Job struct {
 type JobPayload struct {
 	GitServerID *uuid.UUID             `json:"git_server_id,omitempty"`
 	RunnerID    *uuid.UUID             `json:"runner_id,omitempty"`
+	DomainID    *uuid.UUID             `json:"domain_id,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 

@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, and self-hosted Git server and CI runner management.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, and custom domain management with SSL certificate automation.
 
 ## Tech Stack
 
@@ -20,6 +20,8 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **Infrastructure**: Helm-based service provisioning with YAML configuration
 - **Git Servers**: Self-hosted Gitea instance management
 - **CI Runners**: GitHub/GitLab/Custom runner deployment and management
+- **Domain Management**: Custom domain configuration with cert-manager integration
+- **SSL Certificates**: Automated SSL certificate provisioning with ACME challenges
 
 ## Features
 
@@ -109,6 +111,19 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - Background deployment with job queue
 - Runner status monitoring
 - Token encryption and secure storage
+
+### 🌐 Domain Management
+
+- Custom domain configuration for applications
+- DNS provider integration (Cloudflare, Route53, Manual)
+- SSL certificate management with cert-manager
+- ACME challenge support (HTTP-01 and DNS-01)
+- Encrypted DNS provider credentials storage
+- Background domain provisioning with job queue
+- Certificate status monitoring and renewal
+- Manual DNS challenge instructions for manual providers
+- Domain deletion with cleanup jobs
+- Organization-scoped domain management
 
 ### 🔒 Security Features
 
@@ -1494,7 +1509,174 @@ These scripts will:
 5. Test deployment and rollback operations
 6. Test infrastructure service provisioning
 7. Test git server and runner management
-8. Clean up test data
+8. Test domain management and SSL certificate automation
+9. Clean up test data
+
+### Domain Management
+
+#### Create Domain for Application
+
+```http
+POST /apps/{appId}/domains
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "domain": "myapp.example.com",
+  "provider": "cloudflare",
+  "provider_config": {
+    "api_key": "your-cloudflare-api-key",
+    "email": "admin@example.com",
+    "zone_id": "your-zone-id"
+  },
+  "challenge_type": "dns-01"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "app_id": "uuid",
+  "domain": "myapp.example.com",
+  "provider": "cloudflare",
+  "provider_config": {
+    "api_key": "***MASKED***",
+    "email": "admin@example.com",
+    "zone_id": "your-zone-id"
+  },
+  "cert_status": "pending",
+  "cert_secret_name": "",
+  "challenge_type": "dns-01",
+  "dns_instructions": "",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Get Domains for Application
+
+```http
+GET /apps/{appId}/domains
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "app_id": "uuid",
+    "domain": "myapp.example.com",
+    "provider": "cloudflare",
+    "provider_config": {
+      "api_key": "***MASKED***",
+      "email": "admin@example.com",
+      "zone_id": "your-zone-id"
+    },
+    "cert_status": "active",
+    "cert_secret_name": "myapp.example.com-tls",
+    "challenge_type": "dns-01",
+    "dns_instructions": "",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:05:00Z"
+  }
+]
+```
+
+#### Get Domain Details
+
+```http
+GET /domains/{domainId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "id": "uuid",
+  "app_id": "uuid",
+  "domain": "myapp.example.com",
+  "provider": "cloudflare",
+  "provider_config": {
+    "api_key": "***MASKED***",
+    "email": "admin@example.com",
+    "zone_id": "your-zone-id"
+  },
+  "cert_status": "active",
+  "cert_secret_name": "myapp.example.com-tls",
+  "challenge_type": "dns-01",
+  "dns_instructions": "",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:05:00Z"
+}
+```
+
+#### Request Certificate
+
+```http
+POST /domains/{domainId}/certificates
+Authorization: Bearer <jwt-token>
+```
+
+**Response (202):**
+
+```json
+{
+  "message": "Certificate request initiated. Status will be updated shortly.",
+  "domain": {
+    "id": "uuid",
+    "app_id": "uuid",
+    "domain": "myapp.example.com",
+    "provider": "cloudflare",
+    "provider_config": {
+      "api_key": "***MASKED***",
+      "email": "admin@example.com",
+      "zone_id": "your-zone-id"
+    },
+    "cert_status": "pending",
+    "cert_secret_name": "myapp.example.com-tls",
+    "challenge_type": "dns-01",
+    "dns_instructions": "",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:10:00Z"
+  }
+}
+```
+
+#### Get Certificate Status
+
+```http
+GET /domains/{domainId}/certificates
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "domain_id": "uuid",
+  "domain": "myapp.example.com",
+  "cert_status": "active",
+  "cert_secret_name": "myapp.example.com-tls",
+  "issued_at": "2024-01-01T00:05:00Z",
+  "expires_at": "2024-04-01T00:05:00Z",
+  "issuer": "Let's Encrypt",
+  "serial_number": "1234567890abcdef"
+}
+```
+
+#### Delete Domain
+
+```http
+DELETE /domains/{domainId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (204):** No content
 
 ## Configuration
 

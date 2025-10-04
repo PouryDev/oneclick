@@ -1017,5 +1017,129 @@ WHERE
     started_at,
     completed_at;
 
--- name: DeleteJob :exec
-DELETE FROM job_queue WHERE id = $1;
+-- Domain queries
+-- name: CreateDomain :one
+INSERT INTO
+    domains (
+        app_id,
+        domain,
+        provider,
+        provider_config,
+        cert_status,
+        cert_secret_name,
+        challenge_type
+    )
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id,
+    app_id,
+    domain,
+    provider,
+    provider_config,
+    cert_status,
+    cert_secret_name,
+    challenge_type,
+    created_at,
+    updated_at;
+
+-- name: GetDomainByID :one
+SELECT
+    id,
+    app_id,
+    domain,
+    provider,
+    provider_config,
+    cert_status,
+    cert_secret_name,
+    challenge_type,
+    created_at,
+    updated_at
+FROM domains
+WHERE
+    id = $1;
+
+-- name: GetDomainsByAppID :many
+SELECT
+    id,
+    app_id,
+    domain,
+    provider,
+    provider_config,
+    cert_status,
+    cert_secret_name,
+    challenge_type,
+    created_at,
+    updated_at
+FROM domains
+WHERE
+    app_id = $1
+ORDER BY created_at DESC;
+
+-- name: GetDomainByDomainInApp :one
+SELECT
+    id,
+    app_id,
+    domain,
+    provider,
+    provider_config,
+    cert_status,
+    cert_secret_name,
+    challenge_type,
+    created_at,
+    updated_at
+FROM domains
+WHERE
+    app_id = $1
+    AND domain = $2;
+
+-- name: UpdateDomainCertStatus :one
+UPDATE domains
+SET
+    cert_status = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    domain,
+    provider,
+    provider_config,
+    cert_status,
+    cert_secret_name,
+    challenge_type,
+    created_at,
+    updated_at;
+
+-- name: UpdateDomainCertSecret :one
+UPDATE domains
+SET
+    cert_secret_name = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    domain,
+    provider,
+    provider_config,
+    cert_status,
+    cert_secret_name,
+    challenge_type,
+    created_at,
+    updated_at;
+
+-- name: UpdateDomainProviderConfig :one
+UPDATE domains
+SET
+    provider_config = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    domain,
+    provider,
+    provider_config,
+    cert_status,
+    cert_secret_name,
+    challenge_type,
+    created_at,
+    updated_at;
+
+-- name: DeleteDomain :exec
+DELETE FROM domains WHERE id = $1;

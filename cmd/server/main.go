@@ -58,6 +58,7 @@ func main() {
 	gitServerRepo := repo.NewGitServerRepository(db)
 	runnerRepo := repo.NewRunnerRepository(db)
 	jobRepo := repo.NewJobRepository(db)
+	domainRepo := repo.NewDomainRepository(db)
 
 	// Initialize crypto
 	cryptoService, err := crypto.NewCrypto()
@@ -74,6 +75,7 @@ func main() {
 	gitServerService := services.NewGitServerService(gitServerRepo, jobRepo, orgRepo, cryptoService, logger)
 	runnerService := services.NewRunnerService(runnerRepo, jobRepo, orgRepo, cryptoService, logger)
 	jobService := services.NewJobService(jobRepo, orgRepo, logger)
+	domainService := services.NewDomainService(domainRepo, appRepo, jobRepo, orgRepo, cryptoService, logger)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -85,6 +87,7 @@ func main() {
 	gitServerHandler := handlers.NewGitServerHandler(gitServerService, logger)
 	runnerHandler := handlers.NewRunnerHandler(runnerService, logger)
 	jobHandler := handlers.NewJobHandler(jobService, logger)
+	domainHandler := handlers.NewDomainHandler(domainService, logger)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -203,6 +206,10 @@ func main() {
 		apps.POST("/:appId/deploy", applicationHandler.DeployApplication)
 		apps.GET("/:appId/releases", applicationHandler.GetReleasesByApplication)
 		apps.POST("/:appId/releases/:releaseId/rollback", applicationHandler.RollbackApplication)
+
+		// Domain management routes
+		apps.POST("/:appId/domains", domainHandler.CreateDomain)
+		apps.GET("/:appId/domains", domainHandler.GetDomainsByApp)
 	}
 
 	// Global git server routes (require authentication)
@@ -219,6 +226,16 @@ func main() {
 	{
 		runners.GET("/:runnerId", runnerHandler.GetRunner)
 		runners.DELETE("/:runnerId", middleware.RequireAdminOrOwnerMiddleware(), runnerHandler.DeleteRunner)
+	}
+
+	// Global domain routes (require authentication)
+	domains := router.Group("/domains")
+	domains.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		domains.GET("/:domainId", domainHandler.GetDomain)
+		domains.DELETE("/:domainId", middleware.RequireAdminOrOwnerMiddleware(), domainHandler.DeleteDomain)
+		domains.POST("/:domainId/certificates", domainHandler.RequestCertificate)
+		domains.GET("/:domainId/certificates", domainHandler.GetCertificateStatus)
 	}
 
 	// Public webhook routes (no authentication required)
