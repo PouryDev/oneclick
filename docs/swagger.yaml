@@ -1,0 +1,999 @@
+openapi: 3.0.3
+info:
+  title: OneClick Backend API
+  description: |
+    A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, custom domain management with SSL certificate automation, real-time pod runtime management with terminal access, comprehensive monitoring with Prometheus integration, CI/CD pipeline management with dry-run execution, and comprehensive event/audit logging with read model projections for dashboard analytics.
+  version: 1.0.0
+  contact:
+    name: OneClick API Support
+    email: support@oneclick.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.oneclick.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Check if the API is running
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+  /auth/register:
+    post:
+      summary: Register User
+      description: Create a new user account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      summary: Login User
+      description: Authenticate user and get access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      summary: Get Current User
+      description: Get current authenticated user information
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orgs:
+    post:
+      summary: Create Organization
+      description: Create a new organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Organization created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: Get User Organizations
+      description: Get all organizations for the current user
+      responses:
+        '200':
+          description: Organizations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Organization'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orgs/{orgId}:
+    get:
+      summary: Get Organization
+      description: Get organization details
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+      responses:
+        '200':
+          description: Organization retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete Organization
+      description: Delete an organization (Owner only)
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+      responses:
+        '204':
+          description: Organization deleted successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orgs/{orgId}/events:
+    get:
+      summary: Get Organization Events
+      description: Retrieve events for a specific organization with optional filtering
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Number of events to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of events to skip
+        - name: action
+          in: query
+          schema:
+            type: string
+          description: Filter by event action
+        - name: resource_type
+          in: query
+          schema:
+            type: string
+          description: Filter by resource type
+      responses:
+        '200':
+          description: Events retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EventLog'
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+                  count:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orgs/{orgId}/dashboard:
+    get:
+      summary: Get Dashboard Counts
+      description: Retrieve aggregated counts for the organization dashboard
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+      responses:
+        '200':
+          description: Dashboard counts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardCounts'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Dashboard counts not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Refresh Dashboard Counts
+      description: Manually refresh the dashboard counts for an organization
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+      responses:
+        '200':
+          description: Dashboard counts refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardCounts'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orgs/{orgId}/readmodel:
+    get:
+      summary: Get Read Model Projects
+      description: Retrieve all read model projects for an organization
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+      responses:
+        '200':
+          description: Read model projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReadModelProject'
+                  count:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create Read Model Project
+      description: Create a new read model project
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReadModelProjectRequest'
+      responses:
+        '201':
+          description: Read model project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadModelProject'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orgs/{orgId}/readmodel/{key}:
+    get:
+      summary: Get Read Model Project by Key
+      description: Retrieve a specific read model project by its key
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project key
+      responses:
+        '200':
+          description: Read model project retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadModelProject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Read model project not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete Read Model Project
+      description: Delete a read model project by its key
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project key
+      responses:
+        '204':
+          description: Read model project deleted successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Read model project not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /events/{eventId}:
+    get:
+      summary: Get Event by ID
+      description: Retrieve a specific event by its ID
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Event ID
+      responses:
+        '200':
+          description: Event retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventLog'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login endpoint
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+      required:
+        - error
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User ID
+        name:
+          type: string
+          description: User's full name
+        email:
+          type: string
+          format: email
+          description: User's email address
+        created_at:
+          type: string
+          format: date-time
+          description: User creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: User last update timestamp
+      required:
+        - id
+        - name
+        - email
+        - created_at
+        - updated_at
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+        password:
+          type: string
+          format: password
+          description: User's password
+      required:
+        - email
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+        user:
+          $ref: '#/components/schemas/User'
+      required:
+        - access_token
+        - user
+
+    RegisterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: User's full name
+        email:
+          type: string
+          format: email
+          description: User's email address
+        password:
+          type: string
+          format: password
+          description: User's password
+      required:
+        - name
+        - email
+        - password
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Organization ID
+        name:
+          type: string
+          description: Organization name
+        description:
+          type: string
+          description: Organization description
+        created_at:
+          type: string
+          format: date-time
+          description: Organization creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Organization last update timestamp
+      required:
+        - id
+        - name
+        - created_at
+        - updated_at
+
+    CreateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Organization name
+        description:
+          type: string
+          description: Organization description
+      required:
+        - name
+
+    Cluster:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Cluster ID
+        name:
+          type: string
+          description: Cluster name
+        provider:
+          type: string
+          description: Cloud provider (aws, gcp, azure, etc.)
+        region:
+          type: string
+          description: Cloud region
+        status:
+          type: string
+          enum: [provisioning, active, error, deleting]
+          description: Cluster status
+        created_at:
+          type: string
+          format: date-time
+          description: Cluster creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Cluster last update timestamp
+      required:
+        - id
+        - name
+        - provider
+        - region
+        - status
+        - created_at
+        - updated_at
+
+    CreateClusterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Cluster name
+        provider:
+          type: string
+          description: Cloud provider
+        region:
+          type: string
+          description: Cloud region
+        kubeconfig:
+          type: string
+          format: binary
+          description: Kubeconfig file for existing cluster
+      required:
+        - name
+        - provider
+        - region
+
+    Application:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Application ID
+        name:
+          type: string
+          description: Application name
+        cluster_id:
+          type: string
+          format: uuid
+          description: Associated cluster ID
+        repository_id:
+          type: string
+          format: uuid
+          description: Associated repository ID
+        created_at:
+          type: string
+          format: date-time
+          description: Application creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Application last update timestamp
+      required:
+        - id
+        - name
+        - cluster_id
+        - repository_id
+        - created_at
+        - updated_at
+
+    CreateApplicationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Application name
+        cluster_id:
+          type: string
+          format: uuid
+          description: Target cluster ID
+        repository_id:
+          type: string
+          format: uuid
+          description: Source repository ID
+      required:
+        - name
+        - cluster_id
+        - repository_id
+
+    Pipeline:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Pipeline ID
+        app_id:
+          type: string
+          format: uuid
+          description: Associated application ID
+        repo_id:
+          type: string
+          format: uuid
+          description: Associated repository ID
+        commit_sha:
+          type: string
+          description: Git commit SHA
+        status:
+          type: string
+          enum: [pending, running, success, failed, cancelled]
+          description: Pipeline status
+        triggered_by:
+          type: string
+          format: uuid
+          description: User who triggered the pipeline
+        started_at:
+          type: string
+          format: date-time
+          description: Pipeline start timestamp
+        finished_at:
+          type: string
+          format: date-time
+          description: Pipeline completion timestamp
+        meta:
+          type: object
+          description: Additional metadata
+        created_at:
+          type: string
+          format: date-time
+          description: Pipeline creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Pipeline last update timestamp
+      required:
+        - id
+        - app_id
+        - repo_id
+        - commit_sha
+        - status
+        - triggered_by
+        - created_at
+        - updated_at
+
+    TriggerPipelineRequest:
+      type: object
+      properties:
+        ref:
+          type: string
+          description: Git branch or tag
+        commit_sha:
+          type: string
+          description: Git commit SHA
+      required:
+        - ref
+        - commit_sha
+
+    EventLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Event ID
+        org_id:
+          type: string
+          format: uuid
+          description: Organization ID
+        user_id:
+          type: string
+          format: uuid
+          description: User who performed the action
+        action:
+          type: string
+          description: Action performed
+        resource_type:
+          type: string
+          description: Type of resource affected
+        resource_id:
+          type: string
+          format: uuid
+          description: ID of affected resource
+        details:
+          type: object
+          description: Additional event details
+        created_at:
+          type: string
+          format: date-time
+          description: Event timestamp
+      required:
+        - id
+        - org_id
+        - user_id
+        - action
+        - resource_type
+        - resource_id
+        - details
+        - created_at
+
+    DashboardCounts:
+      type: object
+      properties:
+        org_id:
+          type: string
+          format: uuid
+          description: Organization ID
+        apps_count:
+          type: integer
+          description: Total number of applications
+        clusters_count:
+          type: integer
+          description: Total number of clusters
+        running_pipelines:
+          type: integer
+          description: Number of running pipelines
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - org_id
+        - apps_count
+        - clusters_count
+        - running_pipelines
+        - updated_at
+
+    ReadModelProject:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Project ID
+        org_id:
+          type: string
+          format: uuid
+          description: Organization ID
+        key:
+          type: string
+          description: Project key
+        value:
+          type: object
+          description: Project data
+        created_at:
+          type: string
+          format: date-time
+          description: Project creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Project last update timestamp
+      required:
+        - id
+        - org_id
+        - key
+        - value
+        - created_at
+        - updated_at
+
+    CreateReadModelProjectRequest:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Project key
+        value:
+          type: object
+          description: Project data
+      required:
+        - key
+        - value

@@ -1,0 +1,850 @@
+{
+  "info": {
+    "name": "OneClick Backend API",
+    "description": "A comprehensive Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, custom domain management with SSL certificate automation, real-time pod runtime management with terminal access, comprehensive monitoring with Prometheus integration, CI/CD pipeline management with dry-run execution, and comprehensive event/audit logging with read model projections for dashboard analytics.",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "org_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Check if the API is running"
+      },
+      "response": []
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.collectionVariables.set('user_id', responseJson.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Create a new user account"
+          },
+          "response": []
+        },
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', responseJson.access_token);",
+                  "    pm.collectionVariables.set('user_id', responseJson.user.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Authenticate user and get access token"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get current authenticated user information"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Organizations",
+      "item": [
+        {
+          "name": "Create Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.collectionVariables.set('org_id', responseJson.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Organization\",\n  \"description\": \"A sample organization for testing\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/orgs",
+              "host": ["{{base_url}}"],
+              "path": ["orgs"]
+            },
+            "description": "Create a new organization"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Organizations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs",
+              "host": ["{{base_url}}"],
+              "path": ["orgs"]
+            },
+            "description": "Get all organizations for the current user"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Organization",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}"]
+            },
+            "description": "Get organization details"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Organization",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}"]
+            },
+            "description": "Delete an organization (Owner only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Event Logging & Audit Trail",
+      "item": [
+        {
+          "name": "Get Organization Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/events?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "events"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "action",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "resource_type",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieve events for a specific organization with optional filtering"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Organization Events - Filtered by Action",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/events?action=app_created&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "events"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "app_created"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get events filtered by action type"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Organization Events - Filtered by Resource Type",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/events?resource_type=app&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "events"],
+              "query": [
+                {
+                  "key": "resource_type",
+                  "value": "app"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get events filtered by resource type"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["events", "{{event_id}}"]
+            },
+            "description": "Retrieve a specific event by its ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Dashboard Counts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "dashboard"]
+            },
+            "description": "Retrieve aggregated counts for the organization dashboard"
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Dashboard Counts",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/dashboard/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "dashboard", "refresh"]
+            },
+            "description": "Manually refresh the dashboard counts for an organization"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Read Model Projects",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/readmodel",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "readmodel"]
+            },
+            "description": "Retrieve all read model projects for an organization"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Read Model Project by Key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/readmodel/recent_failed_pipelines",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "readmodel", "recent_failed_pipelines"]
+            },
+            "description": "Retrieve a specific read model project by its key"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Read Model Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"custom_analytics\",\n  \"value\": {\n    \"metric\": \"custom_value\",\n    \"data\": \"analytics_data\",\n    \"timestamp\": \"2024-01-01T12:00:00Z\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/readmodel",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "readmodel"]
+            },
+            "description": "Create a new read model project"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Read Model Project",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/readmodel/custom_analytics",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "readmodel", "custom_analytics"]
+            },
+            "description": "Delete a read model project by its key"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Clusters",
+      "item": [
+        {
+          "name": "Create Cluster",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"my-cluster\",\n  \"provider\": \"aws\",\n  \"region\": \"us-west-2\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/clusters",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "clusters"]
+            },
+            "description": "Create a new cluster"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Organization Clusters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orgs/{{org_id}}/clusters",
+              "host": ["{{base_url}}"],
+              "path": ["orgs", "{{org_id}}", "clusters"]
+            },
+            "description": "Get all clusters for an organization"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cluster",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clusters/{{cluster_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clusters", "{{cluster_id}}"]
+            },
+            "description": "Get cluster details"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cluster Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clusters/{{cluster_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["clusters", "{{cluster_id}}", "status"]
+            },
+            "description": "Get cluster health status"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Cluster",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clusters/{{cluster_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clusters", "{{cluster_id}}"]
+            },
+            "description": "Delete a cluster (Admin/Owner only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Applications",
+      "item": [
+        {
+          "name": "Create Application",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"my-app\",\n  \"cluster_id\": \"{{cluster_id}}\",\n  \"repository_id\": \"{{repository_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/clusters/{{cluster_id}}/apps",
+              "host": ["{{base_url}}"],
+              "path": ["clusters", "{{cluster_id}}", "apps"]
+            },
+            "description": "Create a new application"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Applications by Cluster",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clusters/{{cluster_id}}/apps",
+              "host": ["{{base_url}}"],
+              "path": ["clusters", "{{cluster_id}}", "apps"]
+            },
+            "description": "Get all applications for a cluster"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Application",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/{{app_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["apps", "{{app_id}}"]
+            },
+            "description": "Get application details"
+          },
+          "response": []
+        },
+        {
+          "name": "Deploy Application",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/{{app_id}}/deploy",
+              "host": ["{{base_url}}"],
+              "path": ["apps", "{{app_id}}", "deploy"]
+            },
+            "description": "Deploy an application"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Application Releases",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/{{app_id}}/releases",
+              "host": ["{{base_url}}"],
+              "path": ["apps", "{{app_id}}", "releases"]
+            },
+            "description": "Get all releases for an application"
+          },
+          "response": []
+        },
+        {
+          "name": "Rollback Application",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/{{app_id}}/releases/{{release_id}}/rollback",
+              "host": ["{{base_url}}"],
+              "path": ["apps", "{{app_id}}", "releases", "{{release_id}}", "rollback"]
+            },
+            "description": "Rollback application to a previous release"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Application",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/{{app_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["apps", "{{app_id}}"]
+            },
+            "description": "Delete an application (Admin/Owner only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Pipelines",
+      "item": [
+        {
+          "name": "Trigger Pipeline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ref\": \"main\",\n  \"commit_sha\": \"abc123def456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/apps/{{app_id}}/pipelines",
+              "host": ["{{base_url}}"],
+              "path": ["apps", "{{app_id}}", "pipelines"]
+            },
+            "description": "Trigger a pipeline for an application"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Application Pipelines",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/{{app_id}}/pipelines",
+              "host": ["{{base_url}}"],
+              "path": ["apps", "{{app_id}}", "pipelines"]
+            },
+            "description": "Get all pipelines for an application"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pipeline Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pipelines/{{pipeline_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["pipelines", "{{pipeline_id}}"]
+            },
+            "description": "Get pipeline details"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pipeline Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pipelines/{{pipeline_id}}/logs",
+              "host": ["{{base_url}}"],
+              "path": ["pipelines", "{{pipeline_id}}", "logs"]
+            },
+            "description": "Get pipeline execution logs"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Monitoring",
+      "item": [
+        {
+          "name": "Get Monitoring Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/monitoring/health",
+              "host": ["{{base_url}}"],
+              "path": ["monitoring", "health"]
+            },
+            "description": "Check monitoring service health"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cluster Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clusters/{{cluster_id}}/monitoring?range=5m",
+              "host": ["{{base_url}}"],
+              "path": ["clusters", "{{cluster_id}}", "monitoring"],
+              "query": [
+                {
+                  "key": "range",
+                  "value": "5m"
+                }
+              ]
+            },
+            "description": "Get cluster metrics from Prometheus"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cluster Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clusters/{{cluster_id}}/alerts",
+              "host": ["{{base_url}}"],
+              "path": ["clusters", "{{cluster_id}}", "alerts"]
+            },
+            "description": "Get cluster alerts"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Application Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/apps/{{app_id}}/monitoring?range=5m",
+              "host": ["{{base_url}}"],
+              "path": ["apps", "{{app_id}}", "monitoring"],
+              "query": [
+                {
+                  "key": "range",
+                  "value": "5m"
+                }
+              ]
+            },
+            "description": "Get application metrics from Prometheus"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pod Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pods/{{pod_id}}/monitoring",
+              "host": ["{{base_url}}"],
+              "path": ["pods", "{{pod_id}}", "monitoring"]
+            },
+            "description": "Get pod metrics from Prometheus"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Git Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-GitHub-Event",
+                "value": "push",
+                "disabled": true
+              },
+              {
+                "key": "X-GitHub-Delivery",
+                "value": "{{$randomUUID}}",
+                "disabled": true
+              },
+              {
+                "key": "X-Hub-Signature-256",
+                "value": "sha256={{$randomAlphaNumeric}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ref\": \"refs/heads/main\",\n  \"repository\": {\n    \"name\": \"my-repo\",\n    \"full_name\": \"user/my-repo\",\n    \"clone_url\": \"https://github.com/user/my-repo.git\"\n  },\n  \"commits\": [\n    {\n      \"id\": \"abc123def456\",\n      \"message\": \"Update application\",\n      \"timestamp\": \"2024-01-01T12:00:00Z\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/hooks/git",
+              "host": ["{{base_url}}"],
+              "path": ["hooks", "git"]
+            },
+            "description": "Git webhook endpoint for triggering pipelines"
+          },
+          "response": []
+        },
+        {
+          "name": "Test Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/hooks/test",
+              "host": ["{{base_url}}"],
+              "path": ["hooks", "test"]
+            },
+            "description": "Test webhook endpoint"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
