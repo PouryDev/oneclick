@@ -688,5 +688,334 @@ WHERE
     created_at,
     updated_at;
 
--- name: DeleteServiceConfig :exec
-DELETE FROM service_configs WHERE id = $1;
+-- Git Server queries
+-- name: CreateGitServer :one
+INSERT INTO
+    git_servers (
+        org_id,
+        type,
+        domain,
+        storage,
+        status,
+        config
+    )
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id,
+    org_id,
+    type,
+    domain,
+    storage,
+    status,
+    config,
+    created_at,
+    updated_at;
+
+-- name: GetGitServerByID :one
+SELECT
+    id,
+    org_id,
+    type,
+    domain,
+    storage,
+    status,
+    config,
+    created_at,
+    updated_at
+FROM git_servers
+WHERE
+    id = $1;
+
+-- name: GetGitServersByOrgID :many
+SELECT
+    id,
+    org_id,
+    type,
+    domain,
+    storage,
+    status,
+    config,
+    created_at,
+    updated_at
+FROM git_servers
+WHERE
+    org_id = $1
+ORDER BY created_at DESC;
+
+-- name: GetGitServerByDomainInOrg :one
+SELECT
+    id,
+    org_id,
+    type,
+    domain,
+    storage,
+    status,
+    config,
+    created_at,
+    updated_at
+FROM git_servers
+WHERE
+    org_id = $1
+    AND domain = $2;
+
+-- name: UpdateGitServerStatus :one
+UPDATE git_servers
+SET
+    status = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    type,
+    domain,
+    storage,
+    status,
+    config,
+    created_at,
+    updated_at;
+
+-- name: UpdateGitServerConfig :one
+UPDATE git_servers
+SET
+    config = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    type,
+    domain,
+    storage,
+    status,
+    config,
+    created_at,
+    updated_at;
+
+-- name: DeleteGitServer :exec
+DELETE FROM git_servers WHERE id = $1;
+
+-- Runner queries
+-- name: CreateRunner :one
+INSERT INTO
+    runners (
+        org_id,
+        name,
+        type,
+        config,
+        status
+    )
+VALUES ($1, $2, $3, $4, $5) RETURNING id,
+    org_id,
+    name,
+    type,
+    config,
+    status,
+    created_at,
+    updated_at;
+
+-- name: GetRunnerByID :one
+SELECT
+    id,
+    org_id,
+    name,
+    type,
+    config,
+    status,
+    created_at,
+    updated_at
+FROM runners
+WHERE
+    id = $1;
+
+-- name: GetRunnersByOrgID :many
+SELECT
+    id,
+    org_id,
+    name,
+    type,
+    config,
+    status,
+    created_at,
+    updated_at
+FROM runners
+WHERE
+    org_id = $1
+ORDER BY created_at DESC;
+
+-- name: GetRunnerByNameInOrg :one
+SELECT
+    id,
+    org_id,
+    name,
+    type,
+    config,
+    status,
+    created_at,
+    updated_at
+FROM runners
+WHERE
+    org_id = $1
+    AND name = $2;
+
+-- name: UpdateRunnerStatus :one
+UPDATE runners
+SET
+    status = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    name,
+    type,
+    config,
+    status,
+    created_at,
+    updated_at;
+
+-- name: UpdateRunnerConfig :one
+UPDATE runners
+SET
+    config = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    name,
+    type,
+    config,
+    status,
+    created_at,
+    updated_at;
+
+-- name: DeleteRunner :exec
+DELETE FROM runners WHERE id = $1;
+
+-- Job Queue queries
+-- name: CreateJob :one
+INSERT INTO
+    job_queue (org_id, type, status, payload)
+VALUES ($1, $2, $3, $4) RETURNING id,
+    org_id,
+    type,
+    status,
+    payload,
+    error_message,
+    created_at,
+    started_at,
+    completed_at;
+
+-- name: GetJobByID :one
+SELECT
+    id,
+    org_id,
+    type,
+    status,
+    payload,
+    error_message,
+    created_at,
+    started_at,
+    completed_at
+FROM job_queue
+WHERE
+    id = $1;
+
+-- name: GetJobsByOrgID :many
+SELECT
+    id,
+    org_id,
+    type,
+    status,
+    payload,
+    error_message,
+    created_at,
+    started_at,
+    completed_at
+FROM job_queue
+WHERE
+    org_id = $1
+ORDER BY created_at DESC;
+
+-- name: GetPendingJobs :many
+SELECT
+    id,
+    org_id,
+    type,
+    status,
+    payload,
+    error_message,
+    created_at,
+    started_at,
+    completed_at
+FROM job_queue
+WHERE
+    status = 'pending'
+ORDER BY created_at ASC;
+
+-- name: UpdateJobStatus :one
+UPDATE job_queue
+SET
+    status = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    type,
+    status,
+    payload,
+    error_message,
+    created_at,
+    started_at,
+    completed_at;
+
+-- name: StartJob :one
+UPDATE job_queue
+SET
+    status = 'processing',
+    started_at = NOW(),
+    updated_at = NOW()
+WHERE
+    id = $1
+    AND status = 'pending' RETURNING id,
+    org_id,
+    type,
+    status,
+    payload,
+    error_message,
+    created_at,
+    started_at,
+    completed_at;
+
+-- name: CompleteJob :one
+UPDATE job_queue
+SET
+    status = 'completed',
+    completed_at = NOW(),
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    type,
+    status,
+    payload,
+    error_message,
+    created_at,
+    started_at,
+    completed_at;
+
+-- name: FailJob :one
+UPDATE job_queue
+SET
+    status = 'failed',
+    error_message = $2,
+    completed_at = NOW(),
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    org_id,
+    type,
+    status,
+    payload,
+    error_message,
+    created_at,
+    started_at,
+    completed_at;
+
+-- name: DeleteJob :exec
+DELETE FROM job_queue WHERE id = $1;

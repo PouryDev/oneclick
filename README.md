@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, and infrastructure service provisioning.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, and self-hosted Git server and CI runner management.
 
 ## Tech Stack
 
@@ -18,6 +18,8 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **Webhooks**: HMAC signature verification for Git providers
 - **Deployments**: Background worker for Kubernetes deployments
 - **Infrastructure**: Helm-based service provisioning with YAML configuration
+- **Git Servers**: Self-hosted Gitea instance management
+- **CI Runners**: GitHub/GitLab/Custom runner deployment and management
 
 ## Features
 
@@ -85,6 +87,28 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - Kubernetes secret management
 - Service lifecycle management (provision/unprovision)
 - Role-based access control for infrastructure operations
+
+### 🐙 Git Server Management
+
+- Self-hosted Gitea instance provisioning
+- Domain and storage configuration
+- Admin user and credential management
+- Repository listing and management
+- Background installation with Helm charts
+- Status tracking and health monitoring
+- Secure credential storage with encryption
+- Organization-scoped git server management
+
+### 🏃 CI Runner Management
+
+- GitHub Actions runner deployment
+- GitLab CI runner provisioning
+- Custom runner configuration
+- Label and node selector management
+- Resource limits and scaling controls
+- Background deployment with job queue
+- Runner status monitoring
+- Token encryption and secure storage
 
 ### 🔒 Security Features
 
@@ -1014,6 +1038,242 @@ Authorization: Bearer <jwt-token>
 }
 ```
 
+### Git Server Management
+
+#### Create Git Server
+
+```http
+POST /orgs/{orgId}/gitservers
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "type": "gitea",
+  "domain": "gitea.example.com",
+  "storage": "10Gi"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "org_id": "uuid",
+  "type": "gitea",
+  "domain": "gitea.example.com",
+  "storage": "10Gi",
+  "status": "pending",
+  "config": {
+    "admin_user": "",
+    "admin_password": "***MASKED***",
+    "admin_email": "",
+    "repositories": [],
+    "settings": {}
+  },
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Get Git Servers
+
+```http
+GET /orgs/{orgId}/gitservers
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "org_id": "uuid",
+    "type": "gitea",
+    "domain": "gitea.example.com",
+    "storage": "10Gi",
+    "status": "running",
+    "config": {
+      "admin_user": "admin",
+      "admin_password": "***MASKED***",
+      "admin_email": "admin@gitea.example.com",
+      "repositories": ["my-repo", "another-repo"],
+      "settings": {
+        "domain": "gitea.example.com",
+        "storage": "10Gi",
+        "namespace": "gitea-abc123",
+        "release": "gitea-abc123"
+      }
+    },
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+#### Get Git Server Details
+
+```http
+GET /gitservers/{gitServerId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):** Same as above
+
+#### Delete Git Server
+
+```http
+DELETE /gitservers/{gitServerId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (204):** No content
+
+### CI Runner Management
+
+#### Create Runner
+
+```http
+POST /orgs/{orgId}/runners
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+
+{
+  "name": "github-runner",
+  "type": "github",
+  "labels": ["ubuntu", "docker"],
+  "nodeSelector": {
+    "kubernetes.io/os": "linux"
+  },
+  "resources": {
+    "cpu": "500m",
+    "memory": "1Gi"
+  },
+  "token": "ghp_example_token",
+  "url": "https://github.com"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "uuid",
+  "org_id": "uuid",
+  "name": "github-runner",
+  "type": "github",
+  "config": {
+    "labels": ["ubuntu", "docker"],
+    "nodeSelector": {
+      "kubernetes.io/os": "linux"
+    },
+    "resources": {
+      "cpu": "500m",
+      "memory": "1Gi"
+    },
+    "token": "***MASKED***",
+    "url": "https://github.com",
+    "settings": {}
+  },
+  "status": "pending",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### Get Runners
+
+```http
+GET /orgs/{orgId}/runners
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "org_id": "uuid",
+    "name": "github-runner",
+    "type": "github",
+    "config": {
+      "labels": ["ubuntu", "docker"],
+      "nodeSelector": {
+        "kubernetes.io/os": "linux"
+      },
+      "resources": {
+        "cpu": "500m",
+        "memory": "1Gi"
+      },
+      "token": "***MASKED***",
+      "url": "https://github.com",
+      "settings": {
+        "namespace": "runner-abc123",
+        "release": "runner-abc123",
+        "deployed_at": "2024-01-01T00:00:00Z"
+      }
+    },
+    "status": "running",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+#### Get Runner Details
+
+```http
+GET /runners/{runnerId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):** Same as above
+
+#### Delete Runner
+
+```http
+DELETE /runners/{runnerId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (204):** No content
+
+### Job Queue Management
+
+#### Get Jobs for Organization
+
+```http
+GET /orgs/{orgId}/jobs
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "org_id": "uuid",
+    "type": "git_server_install",
+    "status": "completed",
+    "payload": {
+      "git_server_id": "uuid",
+      "config": {
+        "type": "gitea",
+        "domain": "gitea.example.com",
+        "storage": "10Gi"
+      }
+    },
+    "error_message": "",
+    "created_at": "2024-01-01T00:00:00Z",
+    "started_at": "2024-01-01T00:01:00Z",
+    "completed_at": "2024-01-01T00:05:00Z"
+  }
+]
+```
+
 ## Development
 
 ### Available Make Commands
@@ -1219,6 +1479,12 @@ The deployment worker supports:
 ./test_infrastructure_api.sh
 ```
 
+#### Test Git Servers and Runners API:
+
+```bash
+./test_git_runners_api.sh
+```
+
 These scripts will:
 
 1. Register a test user
@@ -1227,7 +1493,8 @@ These scripts will:
 4. Test webhook functionality
 5. Test deployment and rollback operations
 6. Test infrastructure service provisioning
-7. Clean up test data
+7. Test git server and runner management
+8. Clean up test data
 
 ## Configuration
 

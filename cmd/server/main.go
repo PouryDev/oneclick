@@ -55,6 +55,9 @@ func main() {
 	repositoryRepo := repo.NewRepositoryRepository(db)
 	appRepo := repo.NewApplicationRepository(db)
 	releaseRepo := repo.NewReleaseRepository(db)
+	gitServerRepo := repo.NewGitServerRepository(db)
+	runnerRepo := repo.NewRunnerRepository(db)
+	jobRepo := repo.NewJobRepository(db)
 
 	// Initialize crypto
 	cryptoService, err := crypto.NewCrypto()
@@ -68,6 +71,9 @@ func main() {
 	clusterService := services.NewClusterService(clusterRepo, orgRepo, cryptoService)
 	repositoryService := services.NewRepositoryService(repositoryRepo, orgRepo, cryptoService)
 	applicationService := services.NewApplicationService(appRepo, releaseRepo, clusterRepo, repositoryRepo, orgRepo)
+	gitServerService := services.NewGitServerService(gitServerRepo, jobRepo, orgRepo, cryptoService, logger)
+	runnerService := services.NewRunnerService(runnerRepo, jobRepo, orgRepo, cryptoService, logger)
+	jobService := services.NewJobService(jobRepo, orgRepo, logger)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -76,6 +82,9 @@ func main() {
 	repositoryHandler := handlers.NewRepositoryHandler(repositoryService)
 	webhookHandler := handlers.NewWebhookHandler(repositoryService, logger)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	gitServerHandler := handlers.NewGitServerHandler(gitServerService, logger)
+	runnerHandler := handlers.NewRunnerHandler(runnerService, logger)
+	jobHandler := handlers.NewJobHandler(jobService, logger)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -138,6 +147,29 @@ func main() {
 				repos.POST("", repositoryHandler.CreateRepository)
 				repos.GET("", repositoryHandler.GetRepositoriesByOrg)
 			}
+
+			// Git server management routes
+			gitservers := orgSpecific.Group("/gitservers")
+			gitservers.Use(middleware.RequireAdminOrOwnerMiddleware())
+			{
+				gitservers.POST("", gitServerHandler.CreateGitServer)
+				gitservers.GET("", gitServerHandler.GetGitServersByOrg)
+			}
+
+			// Runner management routes
+			runners := orgSpecific.Group("/runners")
+			runners.Use(middleware.RequireAdminOrOwnerMiddleware())
+			{
+				runners.POST("", runnerHandler.CreateRunner)
+				runners.GET("", runnerHandler.GetRunnersByOrg)
+			}
+
+			// Job management routes
+			jobs := orgSpecific.Group("/jobs")
+			jobs.Use(middleware.RequireMemberMiddleware())
+			{
+				jobs.GET("", jobHandler.GetJobsByOrg)
+			}
 		}
 	}
 
@@ -171,6 +203,22 @@ func main() {
 		apps.POST("/:appId/deploy", applicationHandler.DeployApplication)
 		apps.GET("/:appId/releases", applicationHandler.GetReleasesByApplication)
 		apps.POST("/:appId/releases/:releaseId/rollback", applicationHandler.RollbackApplication)
+	}
+
+	// Global git server routes (require authentication)
+	gitservers := router.Group("/gitservers")
+	gitservers.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		gitservers.GET("/:gitServerId", gitServerHandler.GetGitServer)
+		gitservers.DELETE("/:gitServerId", middleware.RequireAdminOrOwnerMiddleware(), gitServerHandler.DeleteGitServer)
+	}
+
+	// Global runner routes (require authentication)
+	runners := router.Group("/runners")
+	runners.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		runners.GET("/:runnerId", runnerHandler.GetRunner)
+		runners.DELETE("/:runnerId", middleware.RequireAdminOrOwnerMiddleware(), runnerHandler.DeleteRunner)
 	}
 
 	// Public webhook routes (no authentication required)
