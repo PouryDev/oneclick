@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/PouryDev/oneclick/internal/app/crypto"
@@ -20,17 +21,20 @@ type JobProcessor interface {
 	Stop() error
 }
 
-// GitRunnerWorker processes background jobs for git servers, CI runners, and domains
+// GitRunnerWorker processes background jobs for git servers, CI runners, domains, and pipelines
 type GitRunnerWorker struct {
 	jobRepo            repo.JobRepository
 	gitServerRepo      repo.GitServerRepository
 	runnerRepo         repo.RunnerRepository
 	domainRepo         repo.DomainRepository
+	pipelineRepo       repo.PipelineRepository
+	pipelineStepRepo   repo.PipelineStepRepository
 	provisioner        provisioner.Provisioner
 	crypto             *crypto.Crypto
 	logger             *zap.Logger
 	stopChan           chan struct{}
 	processingInterval time.Duration
+	dryRun             bool // MVP: dry-run mode for pipeline execution
 }
 
 // NewGitRunnerWorker creates a new GitRunnerWorker
@@ -39,20 +43,26 @@ func NewGitRunnerWorker(
 	gitServerRepo repo.GitServerRepository,
 	runnerRepo repo.RunnerRepository,
 	domainRepo repo.DomainRepository,
+	pipelineRepo repo.PipelineRepository,
+	pipelineStepRepo repo.PipelineStepRepository,
 	provisioner provisioner.Provisioner,
 	crypto *crypto.Crypto,
 	logger *zap.Logger,
+	dryRun bool,
 ) *GitRunnerWorker {
 	return &GitRunnerWorker{
 		jobRepo:            jobRepo,
 		gitServerRepo:      gitServerRepo,
 		runnerRepo:         runnerRepo,
 		domainRepo:         domainRepo,
+		pipelineRepo:       pipelineRepo,
+		pipelineStepRepo:   pipelineStepRepo,
 		provisioner:        provisioner,
 		crypto:             crypto,
 		logger:             logger,
 		stopChan:           make(chan struct{}),
 		processingInterval: 10 * time.Second, // Process jobs every 10 seconds
+		dryRun:             dryRun,
 	}
 }
 
@@ -145,6 +155,8 @@ func (w *GitRunnerWorker) ProcessJob(ctx context.Context, job *domain.Job) error
 		return w.processCertificateRequest(ctx, job)
 	case domain.JobTypeDomainDelete:
 		return w.processDomainDelete(ctx, job)
+	case domain.JobTypePipelineRun:
+		return w.processPipelineRun(ctx, job)
 	default:
 		return fmt.Errorf("unknown job type: %s", job.Type)
 	}
@@ -694,4 +706,132 @@ func (w *GitRunnerWorker) generatePassword(length int) string {
 		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
 	}
 	return string(b)
+}
+
+// processPipelineRun processes pipeline execution jobs
+func (w *GitRunnerWorker) processPipelineRun(ctx context.Context, job *domain.Job) error {
+	if job.Payload.PipelineID == nil {
+		return fmt.Errorf("pipeline ID is required for pipeline run job")
+	}
+
+	pipelineID := *job.Payload.PipelineID
+	w.logger.Info("Processing pipeline run", zap.String("pipelineID", pipelineID.String()))
+
+	// Get pipeline from database
+	_, err := w.pipelineRepo.GetPipelineByID(ctx, pipelineID)
+	if err != nil {
+		return fmt.Errorf("failed to get pipeline: %w", err)
+	}
+
+	// Update pipeline status to running
+	now := time.Now()
+	_, err = w.pipelineRepo.UpdatePipelineStarted(ctx, pipelineID, domain.PipelineStatusRunning, &now)
+	if err != nil {
+		return fmt.Errorf("failed to update pipeline status: %w", err)
+	}
+
+	// Create pipeline steps (simulated for MVP)
+	steps := []string{"checkout", "build", "test", "deploy"}
+	var stepIDs []uuid.UUID
+
+	for _, stepName := range steps {
+		stepID := uuid.New()
+		step := &domain.PipelineStep{
+			ID:         stepID,
+			PipelineID: pipelineID,
+			Name:       stepName,
+			Status:     domain.PipelineStepStatusPending,
+		}
+		_, err := w.pipelineStepRepo.CreatePipelineStep(ctx, step)
+		if err != nil {
+			w.logger.Error("Failed to create pipeline step", zap.Error(err))
+			continue
+		}
+		stepIDs = append(stepIDs, stepID)
+	}
+
+	// Execute pipeline steps (dry-run mode for MVP)
+	for i, stepID := range stepIDs {
+		stepName := steps[i]
+
+		// Update step status to running
+		stepStarted := time.Now()
+		_, err = w.pipelineStepRepo.UpdatePipelineStepStarted(ctx, stepID, domain.PipelineStepStatusRunning, &stepStarted)
+		if err != nil {
+			w.logger.Error("Failed to update step status", zap.Error(err))
+			continue
+		}
+
+		// Simulate step execution (dry-run mode)
+		var logs string
+		var stepStatus domain.PipelineStepStatus
+
+		if w.dryRun {
+			// Dry-run mode: simulate execution with fake logs
+			logs = fmt.Sprintf("DRY RUN: Executing step '%s'\n", stepName)
+			logs += fmt.Sprintf("DRY RUN: Step '%s' completed successfully\n", stepName)
+			stepStatus = domain.PipelineStepStatusSuccess
+		} else {
+			// TODO: Implement actual pipeline step execution
+			// This is a security risk - remote code execution!
+			// For production, implement proper runner controller integration:
+			// - Use self-hosted runners (actions-runner-controller)
+			// - Use GitLab Runner Controller
+			// - Implement proper security isolation
+			// - Add resource limits and sandboxing
+			// - Validate and sanitize all inputs
+
+			logs = fmt.Sprintf("WARNING: Actual pipeline execution not implemented for security reasons\n")
+			logs += fmt.Sprintf("Step '%s' would be executed here\n", stepName)
+			logs += fmt.Sprintf("TODO: Implement proper runner controller integration\n")
+			stepStatus = domain.PipelineStepStatusFailed
+		}
+
+		// Update step with results
+		stepFinished := time.Now()
+		_, err = w.pipelineStepRepo.UpdatePipelineStepFinished(ctx, stepID, stepStatus, &stepFinished)
+		if err != nil {
+			w.logger.Error("Failed to update step finished time", zap.Error(err))
+		}
+
+		_, err = w.pipelineStepRepo.UpdatePipelineStepLogs(ctx, stepID, logs)
+		if err != nil {
+			w.logger.Error("Failed to update step logs", zap.Error(err))
+		}
+
+		// Simulate step duration
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Determine overall pipeline status
+	var pipelineStatus domain.PipelineStatus
+	if w.dryRun {
+		pipelineStatus = domain.PipelineStatusSuccess
+	} else {
+		pipelineStatus = domain.PipelineStatusFailed
+	}
+
+	// Update pipeline status to finished
+	finished := time.Now()
+	_, err = w.pipelineRepo.UpdatePipelineFinished(ctx, pipelineID, pipelineStatus, &finished)
+	if err != nil {
+		return fmt.Errorf("failed to update pipeline finished status: %w", err)
+	}
+
+	w.logger.Info("Pipeline run completed",
+		zap.String("pipelineID", pipelineID.String()),
+		zap.String("status", string(pipelineStatus)),
+		zap.Bool("dryRun", w.dryRun))
+
+	// TODO: Implement proper pipeline execution
+	// For production, replace this with:
+	// - Integration with CI/CD platforms (GitHub Actions, GitLab CI, etc.)
+	// - Self-hosted runners with proper security isolation
+	// - Resource limits and sandboxing
+	// - Artifact storage and management
+	// - Pipeline caching and optimization
+	// - Integration with container registries
+	// - Security scanning and compliance checks
+
+	return nil
 }

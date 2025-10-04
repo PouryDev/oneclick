@@ -1143,3 +1143,267 @@ WHERE
 
 -- name: DeleteDomain :exec
 DELETE FROM domains WHERE id = $1;
+
+-- Pipeline queries
+-- name: CreatePipeline :one
+INSERT INTO
+    pipelines (
+        app_id,
+        repo_id,
+        commit_sha,
+        status,
+        triggered_by,
+        logs_url,
+        started_at,
+        finished_at,
+        meta
+    )
+VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9
+    ) RETURNING id,
+    app_id,
+    repo_id,
+    commit_sha,
+    status,
+    triggered_by,
+    logs_url,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at;
+
+-- name: GetPipelineByID :one
+SELECT
+    id,
+    app_id,
+    repo_id,
+    commit_sha,
+    status,
+    triggered_by,
+    logs_url,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at
+FROM pipelines
+WHERE
+    id = $1;
+
+-- name: GetPipelinesByAppID :many
+SELECT
+    id,
+    app_id,
+    repo_id,
+    commit_sha,
+    status,
+    triggered_by,
+    logs_url,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at
+FROM pipelines
+WHERE
+    app_id = $1
+ORDER BY created_at DESC
+LIMIT $2
+OFFSET
+    $3;
+
+-- name: UpdatePipelineStatus :one
+UPDATE pipelines
+SET
+    status = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    repo_id,
+    commit_sha,
+    status,
+    triggered_by,
+    logs_url,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at;
+
+-- name: UpdatePipelineStarted :one
+UPDATE pipelines
+SET
+    status = $2,
+    started_at = $3,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    repo_id,
+    commit_sha,
+    status,
+    triggered_by,
+    logs_url,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at;
+
+-- name: UpdatePipelineFinished :one
+UPDATE pipelines
+SET
+    status = $2,
+    finished_at = $3,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    repo_id,
+    commit_sha,
+    status,
+    triggered_by,
+    logs_url,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at;
+
+-- name: UpdatePipelineLogsURL :one
+UPDATE pipelines
+SET
+    logs_url = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    app_id,
+    repo_id,
+    commit_sha,
+    status,
+    triggered_by,
+    logs_url,
+    started_at,
+    finished_at,
+    meta,
+    created_at,
+    updated_at;
+
+-- name: DeletePipeline :exec
+DELETE FROM pipelines WHERE id = $1;
+
+-- Pipeline Step queries
+-- name: CreatePipelineStep :one
+INSERT INTO
+    pipeline_steps (
+        pipeline_id,
+        name,
+        status,
+        started_at,
+        finished_at,
+        logs
+    )
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id,
+    pipeline_id,
+    name,
+    status,
+    started_at,
+    finished_at,
+    logs,
+    created_at,
+    updated_at;
+
+-- name: GetPipelineStepsByPipelineID :many
+SELECT
+    id,
+    pipeline_id,
+    name,
+    status,
+    started_at,
+    finished_at,
+    logs,
+    created_at,
+    updated_at
+FROM pipeline_steps
+WHERE
+    pipeline_id = $1
+ORDER BY created_at ASC;
+
+-- name: UpdatePipelineStepStatus :one
+UPDATE pipeline_steps
+SET
+    status = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    pipeline_id,
+    name,
+    status,
+    started_at,
+    finished_at,
+    logs,
+    created_at,
+    updated_at;
+
+-- name: UpdatePipelineStepStarted :one
+UPDATE pipeline_steps
+SET
+    status = $2,
+    started_at = $3,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    pipeline_id,
+    name,
+    status,
+    started_at,
+    finished_at,
+    logs,
+    created_at,
+    updated_at;
+
+-- name: UpdatePipelineStepFinished :one
+UPDATE pipeline_steps
+SET
+    status = $2,
+    finished_at = $3,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    pipeline_id,
+    name,
+    status,
+    started_at,
+    finished_at,
+    logs,
+    created_at,
+    updated_at;
+
+-- name: UpdatePipelineStepLogs :one
+UPDATE pipeline_steps
+SET
+    logs = $2,
+    updated_at = NOW()
+WHERE
+    id = $1 RETURNING id,
+    pipeline_id,
+    name,
+    status,
+    started_at,
+    finished_at,
+    logs,
+    created_at,
+    updated_at;
+
+-- name: DeletePipelineStep :exec
+DELETE FROM pipeline_steps WHERE id = $1;

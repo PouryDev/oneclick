@@ -1,6 +1,6 @@
 # OneClick Backend
 
-A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, custom domain management with SSL certificate automation, real-time pod runtime management with terminal access, and comprehensive monitoring with Prometheus integration.
+A Go backend service built with Clean Architecture principles, featuring authentication, user management, organization management, Kubernetes cluster management, repository integration, webhook processing, application deployment with release management, infrastructure service provisioning, self-hosted Git server and CI runner management, custom domain management with SSL certificate automation, real-time pod runtime management with terminal access, comprehensive monitoring with Prometheus integration, and CI/CD pipeline management with dry-run execution.
 
 ## Tech Stack
 
@@ -25,6 +25,7 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - **SSL Certificates**: Automated SSL certificate provisioning with ACME challenges
 - **Pod Management**: Real-time pod monitoring, logs streaming, and terminal access
 - **Monitoring**: Prometheus integration with metrics aggregation, caching, and rate limiting
+- **Pipeline Management**: CI/CD pipeline orchestration with dry-run mode, job queue integration, and step tracking
 
 ## Features
 
@@ -142,6 +143,25 @@ A Go backend service built with Clean Architecture principles, featuring authent
 - Organization-scoped pod access control
 - Kubernetes client-go integration for cluster operations
 - WebSocket-based terminal with TTY resize support
+
+### 🔄 Pipeline Management (CI/CD)
+
+- Trigger pipelines for applications with branch and commit SHA
+- Pipeline execution with configurable steps (checkout, build, test, deploy)
+- Real-time pipeline status tracking (pending, running, success, failed, cancelled)
+- Individual step monitoring with detailed logs and execution times
+- Asynchronous pipeline processing via job queue integration
+- Dry-run mode for MVP security (prevents remote code execution)
+- Pipeline metadata storage with branch, repository, and trigger information
+- Comprehensive pipeline logs aggregation and retrieval
+- Organization-scoped pipeline access control
+- Pipeline history and status persistence in PostgreSQL
+- Background worker processing with configurable intervals
+- Integration with existing job queue system for scalability
+- Pipeline step status tracking with detailed execution logs
+- Support for manual pipeline triggers and automated webhook integration
+- Pipeline artifact management and storage (future enhancement)
+- Security-first approach with proper runner controller integration planned
 
 ### 📊 Monitoring & Metrics
 
@@ -1926,6 +1946,196 @@ Upgrades to WebSocket connection for real-time terminal interaction.
 - **Input**: Raw terminal input data
 - **Output**: Raw terminal output data
 - **Resize**: `{"type": "resize", "cols": 80, "rows": 24}`
+
+### Pipeline Management (CI/CD)
+
+#### Trigger Pipeline
+
+```http
+POST /apps/{appId}/pipelines
+Authorization: Bearer <jwt-token>
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "branch": "main",
+  "commit_sha": "abc123def456"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "id": "456e7890-e89b-12d3-a456-426614174001",
+  "app_id": "123e4567-e89b-12d3-a456-426614174000",
+  "repo_id": "789e0123-e89b-12d3-a456-426614174002",
+  "commit_sha": "abc123def456",
+  "status": "pending",
+  "triggered_by": "012e3456-e89b-12d3-a456-426614174003",
+  "logs_url": null,
+  "started_at": null,
+  "finished_at": null,
+  "meta": {
+    "branch": "main"
+  },
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T10:30:00Z"
+}
+```
+
+#### Get Pipelines for Application
+
+```http
+GET /apps/{appId}/pipelines?limit=20&offset=0
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+[
+  {
+    "id": "456e7890-e89b-12d3-a456-426614174001",
+    "app_id": "123e4567-e89b-12d3-a456-426614174000",
+    "repo_id": "789e0123-e89b-12d3-a456-426614174002",
+    "commit_sha": "abc123def456",
+    "status": "success",
+    "triggered_by": "012e3456-e89b-12d3-a456-426614174003",
+    "logs_url": "https://logs.example.com/pipeline/456e7890-e89b-12d3-a456-426614174001",
+    "started_at": "2024-01-15T10:30:00Z",
+    "finished_at": "2024-01-15T10:35:00Z",
+    "meta": {
+      "branch": "main"
+    },
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T10:35:00Z"
+  }
+]
+```
+
+#### Get Pipeline Details
+
+```http
+GET /pipelines/{pipelineId}
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "id": "456e7890-e89b-12d3-a456-426614174001",
+  "app_id": "123e4567-e89b-12d3-a456-426614174000",
+  "repo_id": "789e0123-e89b-12d3-a456-426614174002",
+  "commit_sha": "abc123def456",
+  "status": "success",
+  "triggered_by": "012e3456-e89b-12d3-a456-426614174003",
+  "logs_url": "https://logs.example.com/pipeline/456e7890-e89b-12d3-a456-426614174001",
+  "started_at": "2024-01-15T10:30:00Z",
+  "finished_at": "2024-01-15T10:35:00Z",
+  "meta": {
+    "branch": "main"
+  },
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T10:35:00Z",
+  "steps": [
+    {
+      "id": "678e9012-e89b-12d3-a456-426614174005",
+      "pipeline_id": "456e7890-e89b-12d3-a456-426614174001",
+      "name": "checkout",
+      "status": "success",
+      "started_at": "2024-01-15T10:30:00Z",
+      "finished_at": "2024-01-15T10:30:30Z",
+      "logs": "DRY RUN: Executing step 'checkout'\nDRY RUN: Step 'checkout' completed successfully\n",
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T10:30:30Z"
+    },
+    {
+      "id": "789e0123-e89b-12d3-a456-426614174006",
+      "pipeline_id": "456e7890-e89b-12d3-a456-426614174001",
+      "name": "build",
+      "status": "success",
+      "started_at": "2024-01-15T10:30:30Z",
+      "finished_at": "2024-01-15T10:32:00Z",
+      "logs": "DRY RUN: Executing step 'build'\nDRY RUN: Step 'build' completed successfully\n",
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T10:32:00Z"
+    },
+    {
+      "id": "890e1234-e89b-12d3-a456-426614174007",
+      "pipeline_id": "456e7890-e89b-12d3-a456-426614174001",
+      "name": "test",
+      "status": "success",
+      "started_at": "2024-01-15T10:32:00Z",
+      "finished_at": "2024-01-15T10:33:30Z",
+      "logs": "DRY RUN: Executing step 'test'\nDRY RUN: Step 'test' completed successfully\n",
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T10:33:30Z"
+    },
+    {
+      "id": "901e2345-e89b-12d3-a456-426614174008",
+      "pipeline_id": "456e7890-e89b-12d3-a456-426614174001",
+      "name": "deploy",
+      "status": "success",
+      "started_at": "2024-01-15T10:33:30Z",
+      "finished_at": "2024-01-15T10:35:00Z",
+      "logs": "DRY RUN: Executing step 'deploy'\nDRY RUN: Step 'deploy' completed successfully\n",
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T10:35:00Z"
+    }
+  ]
+}
+```
+
+#### Get Pipeline Logs
+
+```http
+GET /pipelines/{pipelineId}/logs
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+
+```json
+{
+  "pipeline_id": "456e7890-e89b-12d3-a456-426614174001",
+  "logs": "=== Pipeline Logs ===\n\n--- Step: checkout ---\nDRY RUN: Executing step 'checkout'\nDRY RUN: Step 'checkout' completed successfully\n\n--- Step: build ---\nDRY RUN: Executing step 'build'\nDRY RUN: Step 'build' completed successfully\n\n--- Step: test ---\nDRY RUN: Executing step 'test'\nDRY RUN: Step 'test' completed successfully\n\n--- Step: deploy ---\nDRY RUN: Executing step 'deploy'\nDRY RUN: Step 'deploy' completed successfully\n\n=== Pipeline Completed Successfully ===\n",
+  "status": "success",
+  "started_at": "2024-01-15T10:30:00Z",
+  "finished_at": "2024-01-15T10:35:00Z"
+}
+```
+
+**Pipeline Status Values:**
+
+- `pending`: Pipeline is queued and waiting to start
+- `running`: Pipeline is currently executing
+- `success`: Pipeline completed successfully
+- `failed`: Pipeline failed during execution
+- `cancelled`: Pipeline was cancelled
+
+**Pipeline Step Status Values:**
+
+- `pending`: Step is waiting to execute
+- `running`: Step is currently executing
+- `success`: Step completed successfully
+- `failed`: Step failed during execution
+- `cancelled`: Step was cancelled
+
+**MVP Implementation Notes:**
+
+- All pipeline executions run in dry-run mode for security reasons
+- Default steps (checkout, build, test, deploy) are simulated
+- Generated logs simulate successful execution
+- Pipelines are processed asynchronously via the job queue
+- Database storage for pipeline and step data
+
+**Security Considerations:**
+⚠️ **Important**: The current MVP implementation includes dry-run mode to prevent remote code execution risks. For production use, implement proper runner controllers (actions-runner-controller, GitLab Runner Controller) with security isolation, resource limits, and input validation.
 
 ### Monitoring & Metrics
 

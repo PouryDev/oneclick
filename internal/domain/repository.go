@@ -116,18 +116,6 @@ type GiteaWebhookPayload struct {
 	} `json:"commits"`
 }
 
-// Pipeline represents a pipeline run (for future implementation)
-type Pipeline struct {
-	ID           uuid.UUID       `json:"id"`
-	RepositoryID uuid.UUID       `json:"repository_id"`
-	Branch       string          `json:"branch"`
-	CommitSHA    string          `json:"commit_sha"`
-	Status       string          `json:"status"`
-	Payload      json.RawMessage `json:"payload"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
-}
-
 // Valid repository types
 const (
 	RepoTypeGitHub = "github"

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -8,12 +9,14 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
 
 	"github.com/PouryDev/oneclick/internal/api/handlers"
 	"github.com/PouryDev/oneclick/internal/api/middleware"
 	"github.com/PouryDev/oneclick/internal/app/crypto"
 	"github.com/PouryDev/oneclick/internal/app/services"
+	"github.com/PouryDev/oneclick/internal/app/worker"
 	"github.com/PouryDev/oneclick/internal/config"
 	"github.com/PouryDev/oneclick/internal/repo"
 
@@ -48,6 +51,9 @@ func main() {
 
 	logger.Info("Successfully connected to database")
 
+	// Convert to sqlx.DB for repositories
+	sqlxDB := sqlx.NewDb(db, "postgres")
+
 	// Initialize repositories
 	userRepo := repo.NewUserRepository(db)
 	orgRepo := repo.NewOrganizationRepository(db)
@@ -59,6 +65,8 @@ func main() {
 	runnerRepo := repo.NewRunnerRepository(db)
 	jobRepo := repo.NewJobRepository(db)
 	domainRepo := repo.NewDomainRepository(db)
+	pipelineRepo := repo.NewPipelineRepository(sqlxDB)
+	pipelineStepRepo := repo.NewPipelineStepRepository(sqlxDB)
 
 	// Initialize crypto
 	cryptoService, err := crypto.NewCrypto()
@@ -76,6 +84,7 @@ func main() {
 	runnerService := services.NewRunnerService(runnerRepo, jobRepo, orgRepo, cryptoService, logger)
 	jobService := services.NewJobService(jobRepo, orgRepo, logger)
 	domainService := services.NewDomainService(domainRepo, appRepo, jobRepo, orgRepo, cryptoService, logger)
+	pipelineService := services.NewPipelineService(pipelineRepo, pipelineStepRepo, appRepo, repositoryRepo, orgRepo, jobRepo, logger)
 	// For now, we'll pass nil for the Kubernetes client
 	// In a real implementation, you would create a Kubernetes client factory
 	// that creates clients per request based on the cluster's kubeconfig
@@ -94,6 +103,7 @@ func main() {
 	runnerHandler := handlers.NewRunnerHandler(runnerService, logger)
 	jobHandler := handlers.NewJobHandler(jobService, logger)
 	domainHandler := handlers.NewDomainHandler(domainService, logger)
+	pipelineHandler := handlers.NewPipelineHandler(pipelineService, logger)
 	podHandler := handlers.NewPodHandler(podService, logger)
 	monitoringHandler := handlers.NewMonitoringHandler(monitoringService, logger)
 
@@ -221,6 +231,10 @@ func main() {
 
 		// Pod management routes
 		apps.GET("/:appId/pods", podHandler.GetPodsByApp)
+
+		// Pipeline management routes
+		apps.POST("/:appId/pipelines", pipelineHandler.TriggerPipeline)
+		apps.GET("/:appId/pipelines", pipelineHandler.GetPipelinesByApp)
 	}
 
 	// Global git server routes (require authentication)
@@ -260,6 +274,14 @@ func main() {
 		pods.GET("/:podId/monitoring", monitoringHandler.GetPodMetrics)
 	}
 
+	// Global pipeline routes (require authentication)
+	pipelines := router.Group("/pipelines")
+	pipelines.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	{
+		pipelines.GET("/:pipelineId", pipelineHandler.GetPipelineByID)
+		pipelines.GET("/:pipelineId/logs", pipelineHandler.GetPipelineLogs)
+	}
+
 	// Global monitoring routes (require authentication)
 	monitoring := router.Group("/monitoring")
 	monitoring.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
@@ -288,6 +310,29 @@ func main() {
 		webhooks.POST("/git", webhookHandler.GitWebhook)
 		webhooks.GET("/test", webhookHandler.TestWebhook)
 	}
+
+	// Initialize background workers
+	// TODO: Add provisioner when implementing infrastructure services
+	gitRunnerWorker := worker.NewGitRunnerWorker(
+		jobRepo,
+		gitServerRepo,
+		runnerRepo,
+		domainRepo,
+		pipelineRepo,
+		pipelineStepRepo,
+		nil, // provisioner - will be implemented later
+		cryptoService,
+		logger,
+		true, // dryRun mode for MVP
+	)
+
+	// Start background workers
+	go func() {
+		ctx := context.Background()
+		if err := gitRunnerWorker.Start(ctx); err != nil {
+			logger.Error("Git runner worker failed", zap.Error(err))
+		}
+	}()
 
 	// Start server
 	port := fmt.Sprintf(":%d", cfg.Server.Port)

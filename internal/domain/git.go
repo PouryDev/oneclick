@@ -52,6 +52,7 @@ const (
 	JobTypeRunnerDeploy     JobType = "runner_deploy"
 	JobTypeGitServerStop    JobType = "git_server_stop"
 	JobTypeRunnerStop       JobType = "runner_stop"
+	JobTypePipelineRun      JobType = "pipeline_run"
 )
 
 // JobStatus defines the status of a background job
@@ -133,6 +134,7 @@ type JobPayload struct {
 	GitServerID *uuid.UUID             `json:"git_server_id,omitempty"`
 	RunnerID    *uuid.UUID             `json:"runner_id,omitempty"`
 	DomainID    *uuid.UUID             `json:"domain_id,omitempty"`
+	PipelineID  *uuid.UUID             `json:"pipeline_id,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
